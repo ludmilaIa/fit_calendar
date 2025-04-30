@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../common/colors.dart';
 import '../../common/nav_bar.dart';
+import '../trainer_schedule.dart';
 
 class TrainerView extends StatefulWidget {
   const TrainerView({super.key});
@@ -14,7 +15,7 @@ class _TrainerViewState extends State<TrainerView> {
 
   final List<Widget> _screens = [
     const ReservationsScreen(),
-    const CalendarScreen(),
+    const TrainerScheduleView(),
     const SettingsScreen(),
   ];
 
@@ -45,22 +46,6 @@ class ReservationsScreen extends StatelessWidget {
       child: Center(
         child: Text(
           'Reservas',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-    );
-  }
-}
-
-class CalendarScreen extends StatelessWidget {
-  const CalendarScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Center(
-        child: Text(
-          'Calendario',
           style: TextStyle(color: Colors.white),
         ),
       ),
