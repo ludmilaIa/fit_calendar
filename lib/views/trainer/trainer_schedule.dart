@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../common/colors.dart';
-import '../../components/schedule_modal.dart';
-import '../../components/schedule_card.dart';
+import '../../components/coach/schedule/schedule_modal.dart';
+import '../../components/coach/schedule/schedule_card.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 
 class TrainerScheduleView extends StatefulWidget {
