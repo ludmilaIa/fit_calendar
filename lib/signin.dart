@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'common/colors.dart';
 import 'signup.dart';
-import 'views/trainer/trainer_view.dart';
-import 'views/fitter/fitter_view.dart';
+import 'views/trainer_view.dart';
+import 'views/fitter_view.dart';
 
 class SignInView extends StatefulWidget {
   const SignInView({super.key});

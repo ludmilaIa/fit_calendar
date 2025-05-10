@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../common/colors.dart';
-import '../../common/nav_bar.dart';
-import '../trainer_schedule.dart';
+import '../common/colors.dart';
+import '../common/nav_bar.dart';
+import 'trainer/trainer_schedule.dart';
 
 class TrainerView extends StatefulWidget {
   const TrainerView({super.key});
