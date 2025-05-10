@@ -12,8 +12,65 @@ class SignInView extends StatefulWidget {
 }
 
 class _SignInViewState extends State<SignInView> {
-  // Temporary demo variable - replace with actual auth logic
-  bool isTrainer = true;
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  String? _errorMessage;
+
+  // Mock credentials
+  final Map<String, Map<String, String>> _mockUsers = {
+    'coach@test.com': {
+      'password': 'Test1234!!',
+      'role': 'trainer',
+    },
+    'fitter@test.com': {
+      'password': 'Test1234!!',
+      'role': 'fitter',
+    },
+  };
+
+  void _handleSignIn() {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        _errorMessage = 'Por favor ingresa email y contraseña';
+      });
+      return;
+    }
+
+    if (_mockUsers.containsKey(email)) {
+      final user = _mockUsers[email]!;
+      if (user['password'] == password) {
+        setState(() {
+          _errorMessage = null;
+        });
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => user['role'] == 'trainer'
+                ? const TrainerView()
+                : const FitterView(),
+          ),
+        );
+      } else {
+        setState(() {
+          _errorMessage = 'Contraseña incorrecta';
+        });
+      }
+    } else {
+      setState(() {
+        _errorMessage = 'Usuario no encontrado';
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -58,11 +115,12 @@ class _SignInViewState extends State<SignInView> {
                 ),
                 const SizedBox(height: 48),
                 
-                // Username input
+                // Email input
                 TextField(
+                  controller: _emailController,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: 'Usuario',
+                    hintText: 'Email',
                     hintStyle: TextStyle(color: AppColors.gray),
                     filled: true,
                     fillColor: AppColors.darkGray.withOpacity(0.3),
@@ -80,6 +138,7 @@ class _SignInViewState extends State<SignInView> {
                 
                 // Password input
                 TextField(
+                  controller: _passwordController,
                   obscureText: true,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
@@ -97,20 +156,21 @@ class _SignInViewState extends State<SignInView> {
                     ),
                   ),
                 ),
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 32),
                 
                 // Login Button
                 ElevatedButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => isTrainer 
-                          ? const TrainerView() 
-                          : const FitterView(),
-                      ),
-                    );
-                  },
+                  onPressed: _handleSignIn,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.neonBlue,
                     minimumSize: const Size(double.infinity, 50),
