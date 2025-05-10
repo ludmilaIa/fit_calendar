@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import '../../common/colors.dart';
 import '../../components/schedule_modal.dart';
+import '../../components/schedule_card.dart';
+import 'package:flutter_slidable/flutter_slidable.dart';
 
 class TrainerScheduleView extends StatefulWidget {
   const TrainerScheduleView({super.key});
@@ -15,6 +17,20 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   Map<DateTime, List<TimeSlot>> _schedule = {};
+
+  String _formatDate(DateTime date) {
+    // Example: 10 de Abril
+    const months = [
+      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    return '${date.day} de ${months[date.month]}';
+  }
+
+  String _formatTimeRange(TimeOfDay start, TimeOfDay end) {
+    String format(TimeOfDay t) => '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
+    return '${format(start)} - ${format(end)}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -104,36 +120,48 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
     }
 
     final timeSlots = _schedule[_selectedDay] ?? [];
-    
+    final dateString = _formatDate(_selectedDay!);
     return ListView.builder(
       itemCount: timeSlots.length,
       itemBuilder: (context, index) {
         final slot = timeSlots[index];
-        return ListTile(
-          title: Text(
-            '${slot.startTime.hour}:${slot.startTime.minute.toString().padLeft(2, '0')} - '
-            '${slot.endTime.hour}:${slot.endTime.minute.toString().padLeft(2, '0')}',
-            style: const TextStyle(color: Colors.white),
+        return Slidable(
+          key: ValueKey(slot),
+          endActionPane: ActionPane(
+            motion: const DrawerMotion(),
+            children: [
+              SlidableAction(
+                onPressed: (_) => _toggleTimeSlot(slot),
+                backgroundColor: Colors.transparent,
+                icon: slot.isAvailable ? Icons.lock_open : Icons.lock,
+                foregroundColor: slot.isAvailable ? AppColors.neonBlue : Colors.red,
+              ),
+              SlidableAction(
+                onPressed: (_) => _deleteTimeSlot(_selectedDay!, slot),
+                backgroundColor: Colors.transparent,
+                icon: Icons.delete,
+                foregroundColor: Colors.red,
+              ),
+              SlidableAction(
+                onPressed: (_) => _editTimeSlot(slot),
+                backgroundColor: Colors.transparent,
+                icon: Icons.edit,
+                foregroundColor: AppColors.primaryBlue,
+              ),
+            ],
           ),
-          subtitle: Text(
-            slot.isAvailable ? 'Disponible' : 'Ocupado',
-            style: TextStyle(
-              color: slot.isAvailable ? AppColors.neonBlue : Colors.red,
-            ),
-          ),
-          trailing: IconButton(
-            icon: Icon(
-              slot.isAvailable ? Icons.lock : Icons.lock_open,
-              color: slot.isAvailable ? Colors.red : AppColors.neonBlue,
-            ),
-            onPressed: () => _toggleTimeSlot(slot),
+          child: ScheduleCard(
+            dateString: dateString,
+            timeString: _formatTimeRange(slot.startTime, slot.endTime),
+            sport: slot.sport,
+            isAvailable: slot.isAvailable,
           ),
         );
       },
     );
   }
 
-  void _addTimeSlot() {
+  void _addTimeSlot() async {
     if (_selectedDay == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -144,10 +172,38 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
       return;
     }
 
-    showDialog(
+    final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (context) => const AddScheduleModal(),
     );
+
+    if (result != null) {
+      final from = result['from'] as String;
+      final to = result['to'] as String;
+      final sport = result['sport'] as String;
+      // Parse time strings like '9:00 AM' to TimeOfDay
+      TimeOfDay parseTime(String t) {
+        final parts = t.split(' ');
+        final timeParts = parts[0].split(':');
+        int hour = int.parse(timeParts[0]);
+        int minute = int.parse(timeParts[1]);
+        if (parts.length > 1 && parts[1] == 'PM' && hour != 12) hour += 12;
+        if (parts.length > 1 && parts[1] == 'AM' && hour == 12) hour = 0;
+        return TimeOfDay(hour: hour, minute: minute);
+      }
+      final startTime = parseTime(from);
+      final endTime = parseTime(to);
+      setState(() {
+        _schedule[_selectedDay!] = [
+          ...?_schedule[_selectedDay!],
+          TimeSlot(
+            startTime: startTime,
+            endTime: endTime,
+            sport: sport,
+          ),
+        ];
+      });
+    }
   }
 
   void _toggleTimeSlot(TimeSlot slot) {
@@ -155,16 +211,28 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
       slot.isAvailable = !slot.isAvailable;
     });
   }
+
+  void _deleteTimeSlot(DateTime day, TimeSlot slot) {
+    setState(() {
+      _schedule[day]?.remove(slot);
+    });
+  }
+
+  void _editTimeSlot(TimeSlot slot) {
+    // Implement edit logic or modal here
+  }
 }
 
 class TimeSlot {
   final TimeOfDay startTime;
   final TimeOfDay endTime;
+  final String sport;
   bool isAvailable;
 
   TimeSlot({
     required this.startTime,
     required this.endTime,
+    required this.sport,
     this.isAvailable = true,
   });
 } 
