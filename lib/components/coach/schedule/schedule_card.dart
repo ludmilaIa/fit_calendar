@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../common/colors.dart';
+import '../../../common/colors.dart';
 
 class ScheduleCard extends StatelessWidget {
   final String dateString; // e.g. '10 de Abril'

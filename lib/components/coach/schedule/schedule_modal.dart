@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../common/colors.dart';
+import '../../../common/colors.dart';
 
 class AddScheduleModal extends StatefulWidget {
   const AddScheduleModal({super.key});

@@ -19,4 +19,7 @@ class AppColors {
   static const Color black = Color(0xFF000000);
   static const Color softBlack = Color(0xFF212121);
   static const Color cardBackground = Color(0xFF545252);
+  
+  // Red
+  static const Color exitRed = Color(0xFFEC0000);
 }
