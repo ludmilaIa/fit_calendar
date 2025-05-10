@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../common/colors.dart';
-import '../../common/nav_bar.dart';
+import '../common/colors.dart';
+import '../common/nav_bar.dart';
 
 class FitterView extends StatefulWidget {
   const FitterView({super.key});

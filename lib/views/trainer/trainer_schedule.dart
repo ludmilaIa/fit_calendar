@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
-import 'package:time_range/time_range.dart';
-import '../common/colors.dart';
+import '../../common/colors.dart';
+import '../../components/schedule_modal.dart';
 
 class TrainerScheduleView extends StatefulWidget {
   const TrainerScheduleView({super.key});
@@ -41,7 +41,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             focusedDay: _focusedDay,
             calendarFormat: _calendarFormat,
             selectedDayPredicate: (day) {
-              return isSameDay(_selectedDay, day);
+              return _selectedDay != null && isSameDay(_selectedDay, day);
             },
             onDaySelected: (selectedDay, focusedDay) {
               setState(() {
@@ -59,11 +59,20 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                 color: AppColors.neonBlue,
                 shape: BoxShape.circle,
               ),
-              todayDecoration: BoxDecoration(
-                color: AppColors.neonBlue.withOpacity(0.3),
-                shape: BoxShape.circle,
+              selectedTextStyle: const TextStyle(color: Colors.black),
+              todayDecoration: const BoxDecoration(),
+              defaultTextStyle: const TextStyle(color: Colors.white),
+              weekendTextStyle: const TextStyle(color: Colors.white),
+              disabledTextStyle: const TextStyle(color: Colors.grey),
+              disabledDecoration: const BoxDecoration(
+                color: Colors.transparent,
               ),
             ),
+            enabledDayPredicate: (day) {
+              final now = DateTime.now();
+              final today = DateTime(now.year, now.month, now.day);
+              return day.isAfter(today.subtract(const Duration(days: 1)));
+            },
             headerStyle: HeaderStyle(
               formatButtonVisible: true,
               titleCentered: true,
@@ -72,7 +81,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                 color: AppColors.neonBlue,
                 borderRadius: BorderRadius.circular(20),
               ),
-              formatButtonTextStyle: const TextStyle(color: Colors.white),
+              formatButtonTextStyle: const TextStyle(color: Colors.black),
               titleTextStyle: const TextStyle(color: Colors.white),
             ),
           ),
@@ -125,41 +134,19 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   }
 
   void _addTimeSlot() {
-    if (_selectedDay == null) return;
+    if (_selectedDay == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor selecciona un día primero'),
+          backgroundColor: AppColors.neonBlue,
+        ),
+      );
+      return;
+    }
 
     showDialog(
       context: context,
-      builder: (context) => TimeRange(
-        fromTitle: const Text('Desde', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        toTitle: const Text('Hasta', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-        titlePadding: 25,
-        textStyle: const TextStyle(fontWeight: FontWeight.normal, color: Colors.black87),
-        activeTextStyle: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
-        borderColor: AppColors.neonBlue,
-        backgroundColor: Colors.white,
-        activeBackgroundColor: AppColors.neonBlue,
-        firstTime: const TimeOfDay(hour: 8, minute: 0),
-        lastTime: const TimeOfDay(hour: 20, minute: 0),
-        timeStep: 30,
-        timeBlock: 30,
-        onRangeCompleted: (range) {
-          if (range != null) {
-            setState(() {
-              final newSlot = TimeSlot(
-                startTime: range.start,
-                endTime: range.end,
-                isAvailable: true,
-              );
-              
-              if (_schedule[_selectedDay] == null) {
-                _schedule[_selectedDay!] = [];
-              }
-              
-              _schedule[_selectedDay]!.add(newSlot);
-            });
-          }
-        },
-      ),
+      builder: (context) => const AddScheduleModal(),
     );
   }
 
