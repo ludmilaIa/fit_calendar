@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../common/colors.dart';
-import 'reservation_card.dart';
+import '../../common/colors.dart';
+import '../../components/coach/reservas/reservation_card.dart';
 
 class CoachReservasView extends StatelessWidget {
   const CoachReservasView({super.key});

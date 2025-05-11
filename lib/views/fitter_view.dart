@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../common/colors.dart';
 import '../common/nav_bar.dart';
+import 'fitters/settings_screen.dart';
 
 class FitterView extends StatefulWidget {
   const FitterView({super.key});
@@ -61,22 +62,6 @@ class ExploreScreen extends StatelessWidget {
       child: Center(
         child: Text(
           'Explorar',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-    );
-  }
-}
-
-class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Center(
-        child: Text(
-          'Configuración',
           style: TextStyle(color: Colors.white),
         ),
       ),

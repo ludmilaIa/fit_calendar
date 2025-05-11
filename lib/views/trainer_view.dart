@@ -3,7 +3,7 @@ import '../common/colors.dart';
 import '../common/nav_bar.dart';
 import 'trainer/trainer_schedule.dart';
 import 'trainer/coach_settings_screen.dart';
-import '../components/coach/reservas/coach_reservation.dart';
+import 'trainer/coach_reservation.dart';
 
 class TrainerView extends StatefulWidget {
   const TrainerView({super.key});
