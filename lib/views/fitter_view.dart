@@ -3,6 +3,7 @@ import '../common/colors.dart';
 import '../common/nav_bar.dart';
 import 'fitters/settings_screen.dart';
 import 'fitters/reservations_screen.dart';
+import 'fitters/search_screen.dart';
 
 class FitterView extends StatefulWidget {
   const FitterView({super.key});
@@ -16,7 +17,7 @@ class _FitterViewState extends State<FitterView> {
 
   final List<Widget> _screens = [
     const FitterReservationsScreen(),
-    const ExploreScreen(),
+    const FitterExplorarView(),
     const SettingsScreen(),
   ];
 
@@ -37,18 +38,4 @@ class _FitterViewState extends State<FitterView> {
   }
 }
 
-class ExploreScreen extends StatelessWidget {
-  const ExploreScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Center(
-        child: Text(
-          'Explorar',
-          style: TextStyle(color: Colors.white),
-        ),
-      ),
-    );
-  }
-} 
+// The ExploreScreen class is no longer needed and can be removed if not used elsewhere. 
