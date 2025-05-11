@@ -3,6 +3,7 @@ import '../common/colors.dart';
 import '../common/nav_bar.dart';
 import 'trainer/trainer_schedule.dart';
 import 'trainer/coach_settings_screen.dart';
+import '../components/coach/reservas/coach_reservation.dart';
 
 class TrainerView extends StatefulWidget {
   const TrainerView({super.key});
@@ -15,7 +16,7 @@ class _TrainerViewState extends State<TrainerView> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = [
-    const ReservationsScreen(),
+    const CoachReservasView(),
     const TrainerScheduleView(),
     const CoachSettingsScreen(),
   ];
@@ -32,23 +33,6 @@ class _TrainerViewState extends State<TrainerView> {
             _currentIndex = index;
           });
         },
-      ),
-    );
-  }
-}
-
-// Placeholder screens - You can move these to separate files later
-class ReservationsScreen extends StatelessWidget {
-  const ReservationsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const SafeArea(
-      child: Center(
-        child: Text(
-          'Reservas',
-          style: TextStyle(color: Colors.white),
-        ),
       ),
     );
   }

@@ -16,7 +16,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   CalendarFormat _calendarFormat = CalendarFormat.week;
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  Map<DateTime, List<TimeSlot>> _schedule = {};
+  final Map<DateTime, List<TimeSlot>> _schedule = {};
 
   String _formatDate(DateTime date) {
     // Example: 10 de Abril
