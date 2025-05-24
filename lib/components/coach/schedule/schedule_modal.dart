@@ -13,6 +13,8 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
   int selectedFrom = 0;
   int selectedTo = 0;
   int selectedOnline = 0; // 0: Si, 1: No
+  final TextEditingController precioController = TextEditingController();
+  final TextEditingController ubicacionController = TextEditingController();
 
   final List<String> times = [
     '8:00 AM', '8:30 AM', '9:00 AM'
@@ -69,6 +71,52 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
                   _onlineButton(1, 'No'),
                 ],
               ),
+              const SizedBox(height: 20),
+              const Text('Precio', style: TextStyle(color: Colors.white, fontSize: 20)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: precioController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Ingrese el precio',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  filled: true,
+                  fillColor: AppColors.cardBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.neonBlue, width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              const Text('Ubicación', style: TextStyle(color: Colors.white, fontSize: 20)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: ubicacionController,
+                style: const TextStyle(color: Colors.white),
+                decoration: InputDecoration(
+                  hintText: 'Ingrese la ubicación',
+                  hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                  filled: true,
+                  fillColor: AppColors.cardBackground,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: AppColors.neonBlue, width: 2),
+                  ),
+                ),
+              ),
               const SizedBox(height: 32),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -91,6 +139,8 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
                           'from': times[selectedFrom],
                           'to': times[selectedTo],
                           'online': selectedOnline == 0,
+                          'precio': precioController.text,
+                          'ubicacion': ubicacionController.text,
                         });
                       },
                       child: const Text('Agregar', style: TextStyle(fontSize: 18)),
@@ -172,5 +222,12 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
         ),
       ),
     );
+  }
+
+  @override
+  void dispose() {
+    precioController.dispose();
+    ubicacionController.dispose();
+    super.dispose();
   }
 } 
