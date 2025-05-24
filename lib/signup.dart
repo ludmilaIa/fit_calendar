@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'common/colors.dart';
 import 'common/toggle_button.dart';
+import 'views/coach_profile_setup.dart';
 
 class SignUpView extends StatefulWidget {
   const SignUpView({super.key});
@@ -26,9 +27,16 @@ class _SignUpViewState extends State<SignUpView> {
       return;
     }
 
-    // Here you would typically handle the registration
-    // For now, we'll just navigate back to sign in
-    Navigator.pop(context);
+    // If role is coach (Entrenador), navigate to profile setup
+    if (selectedRole == 0) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const CoachProfileSetupView()),
+      );
+    } else {
+      // For other roles, just go back to sign in for now
+      Navigator.pop(context);
+    }
   }
 
   @override
