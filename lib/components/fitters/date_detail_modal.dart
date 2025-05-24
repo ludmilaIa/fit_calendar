@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../common/colors.dart';
+import 'appointment_details_modal.dart';
 
 class DateDetailModal extends StatefulWidget {
   final String date;
@@ -14,13 +15,31 @@ class _DateDetailModalState extends State<DateDetailModal> {
 
   // Example slot data
   final List<Map<String, dynamic>> slots = [
-    {'time1': '10:00AM', 'time2': '11:00AM', 'online': true, 'available': true},
-    {'time1': '10:00AM', 'time2': '11:00AM', 'online': false, 'available': false},
-    {'time1': '10:00AM', 'time2': '11:00AM', 'online': true, 'available': true},
-    {'time1': '10:00AM', 'time2': '11:00AM', 'online': true, 'available': true},
-    {'time1': '10:00AM', 'time2': '11:00AM', 'online': false, 'available': false},
-    {'time1': '10:00AM', 'time2': '11:00AM', 'online': false, 'available': true},
+    {'time1': '10:00AM', 'time2': '11:00AM', 'online': true, 'available': true, 'price': '\$6', 'location': 'La Rosaleda'},
+    {'time1': '10:00AM', 'time2': '11:00AM', 'online': false, 'available': false, 'price': '\$6', 'location': 'La Rosaleda'},
+    {'time1': '10:00AM', 'time2': '11:00AM', 'online': true, 'available': true, 'price': '\$6', 'location': 'La Rosaleda'},
+    {'time1': '10:00AM', 'time2': '11:00AM', 'online': true, 'available': true, 'price': '\$6', 'location': 'La Rosaleda'},
+    {'time1': '10:00AM', 'time2': '11:00AM', 'online': false, 'available': false, 'price': '\$6', 'location': 'La Rosaleda'},
+    {'time1': '10:00AM', 'time2': '11:00AM', 'online': false, 'available': true, 'price': '\$6', 'location': 'La Rosaleda'},
   ];
+
+  void _showAppointmentDetailsModal(BuildContext context, int index) {
+    final slot = slots[index];
+    
+    // Instead of closing the current modal, show the new one on top
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevent dismissing by tapping outside
+      builder: (context) => AppointmentDetailsModal(
+        date: widget.date,
+        timeStart: slot['time1'] ?? '10:00AM', 
+        timeEnd: slot['time2'] ?? '11:00AM',
+        isOnline: slot['online'] ?? false,
+        price: slot['price'] ?? '\$6',
+        location: slot['location'] ?? 'La Rosaleda',
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -85,6 +104,7 @@ class _DateDetailModalState extends State<DateDetailModal> {
                                   setState(() {
                                     selectedSlot = idx;
                                   });
+                                  _showAppointmentDetailsModal(context, idx);
                                 },
                               ),
                             const SizedBox(height: 16),
@@ -97,6 +117,7 @@ class _DateDetailModalState extends State<DateDetailModal> {
                                   setState(() {
                                     selectedSlot = idx;
                                   });
+                                  _showAppointmentDetailsModal(context, idx);
                                 },
                               ),
                           ],
@@ -136,28 +157,6 @@ class _DateDetailModalState extends State<DateDetailModal> {
                 ],
               ),
               const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Container(
-                    width: 160,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: AppColors.neonBlue,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    alignment: Alignment.center,
-                    child: const Text(
-                      'Agendar',
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
             ],
           ),
         ),
