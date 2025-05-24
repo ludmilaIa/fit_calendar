@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'common/colors.dart';
 import 'common/toggle_button.dart';
 import 'views/coach_profile_setup.dart';
+import 'views/fitter_profile_setup.dart';
 
 class SignUpView extends StatefulWidget {
   const SignUpView({super.key});
@@ -27,15 +28,19 @@ class _SignUpViewState extends State<SignUpView> {
       return;
     }
 
-    // If role is coach (Entrenador), navigate to profile setup
+    // Navigate to appropriate profile setup based on role
     if (selectedRole == 0) {
+      // Coach
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const CoachProfileSetupView()),
       );
     } else {
-      // For other roles, just go back to sign in for now
-      Navigator.pop(context);
+      // Fitter
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const FitterProfileSetupView()),
+      );
     }
   }
 
