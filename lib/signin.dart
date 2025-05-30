@@ -40,13 +40,30 @@ class _SignInViewState extends State<SignInView> {
   Future<void> _checkExistingSession() async {
     final token = await authService.getToken();
     if (token != null && mounted) {
-
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const FitterView(),
-        ),
-      );
+      // Get user data from storage or API to check role
+      try {
+        // Attempt to get user info using the token
+        final userData = await authService.getUserInfo();
+        
+        if (userData['success']) {
+          final userRole = userData['data']['role'] ?? userData['data']['user']['role'];
+          
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => userRole == 'trainer' || userRole == 'Coach'
+                  ? const TrainerView()
+                  : const FitterView(),
+            ),
+          );
+        } else {
+          // If can't get user role, logout and stay on login screen
+          await authService.clearToken();
+        }
+      } catch (e) {
+        // If there's an error, clear token and stay on login screen
+        await authService.clearToken();
+      }
     }
   }
 

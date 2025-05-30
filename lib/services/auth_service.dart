@@ -190,4 +190,57 @@ class AuthService {
       };
     }
   }
+  
+  Future<Map<String, dynamic>> getUserInfo() async {
+    try {
+      // Get the stored token
+      final token = await getToken();
+      
+      if (token == null) {
+        developer.log('No hay token para obtener información del usuario');
+        return {
+          'success': false,
+          'error': 'No authentication token'
+        };
+      }
+      
+      developer.log('Obteniendo información del usuario con token');
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/user'),
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+
+      developer.log('Respuesta del servidor (${response.statusCode}): ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'data': data,
+        };
+      } else {
+        dynamic data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          data = {'message': 'Error al procesar la respuesta'};
+        }
+        
+        return {
+          'success': false,
+          'error': data['message'] ?? 'Error al obtener información del usuario',
+        };
+      }
+    } catch (e) {
+      developer.log('Error al obtener información del usuario: $e', error: e);
+      return {
+        'success': false,
+        'error': 'Error de conexión: $e',
+      };
+    }
+  }
 } 
