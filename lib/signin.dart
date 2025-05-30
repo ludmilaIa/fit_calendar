@@ -3,6 +3,7 @@ import 'common/colors.dart';
 import 'signup.dart';
 import 'views/trainer_view.dart';
 import 'views/fitter_view.dart';
+import 'services/auth_service.dart';
 
 class SignInView extends StatefulWidget {
   const SignInView({super.key});
@@ -14,9 +15,11 @@ class SignInView extends StatefulWidget {
 class _SignInViewState extends State<SignInView> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final AuthService authService = AuthService();
   String? _errorMessage;
+  bool _isLoading = false;
 
-  // Mock credentials
+  // Mock credentials for fallback or testing
   final Map<String, Map<String, String>> _mockUsers = {
     'coach@test.com': {
       'password': 'Test1234!!',
@@ -28,39 +31,93 @@ class _SignInViewState extends State<SignInView> {
     },
   };
 
-  void _handleSignIn() {
+  @override
+  void initState() {
+    super.initState();
+    _checkExistingSession();
+  }
+
+  Future<void> _checkExistingSession() async {
+    final token = await authService.getToken();
+    if (token != null && mounted) {
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const FitterView(),
+        ),
+      );
+    }
+  }
+
+  void _handleSignIn() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (email.isEmpty || password.isEmpty) {
       setState(() {
         _errorMessage = 'Por favor ingresa email y contraseña';
+        _isLoading = false;
       });
       return;
     }
 
-    if (_mockUsers.containsKey(email)) {
-      final user = _mockUsers[email]!;
-      if (user['password'] == password) {
-        setState(() {
-          _errorMessage = null;
-        });
+    try {
+      final response = await authService.login(
+        email: email,
+        password: password,
+      );
+
+      if (!mounted) return;
+
+      if (response['success']) {
+        final userData = response['data'];
+        final userRole = userData['user']['role'];
+        
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => user['role'] == 'trainer'
+            builder: (context) => userRole == 'trainer'
                 ? const TrainerView()
                 : const FitterView(),
           ),
         );
       } else {
         setState(() {
-          _errorMessage = 'Contraseña incorrecta';
+          _errorMessage = response['error'] ?? 'Error de inicio de sesión';
         });
       }
-    } else {
+    } catch (e) {
       setState(() {
-        _errorMessage = 'Usuario no encontrado';
+        _errorMessage = 'Error de conexión';
+      });
+      
+      // Fallback to mock users for testing if API fails
+      if (_mockUsers.containsKey(email)) {
+        final user = _mockUsers[email]!;
+        if (user['password'] == password) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => user['role'] == 'trainer'
+                  ? const TrainerView()
+                  : const FitterView(),
+            ),
+          );
+        } else {
+          setState(() {
+            _errorMessage = 'Contraseña incorrecta';
+          });
+        }
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
       });
     }
   }
@@ -123,7 +180,7 @@ class _SignInViewState extends State<SignInView> {
                     hintText: 'Email',
                     hintStyle: TextStyle(color: AppColors.gray),
                     filled: true,
-                    fillColor: AppColors.darkGray.withOpacity(0.3),
+                    fillColor: AppColors.darkGray.withAlpha(77),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: AppColors.primaryBlue),
@@ -145,7 +202,7 @@ class _SignInViewState extends State<SignInView> {
                     hintText: 'Contraseña',
                     hintStyle: TextStyle(color: AppColors.gray),
                     filled: true,
-                    fillColor: AppColors.darkGray.withOpacity(0.3),
+                    fillColor: AppColors.darkGray.withAlpha(77),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: AppColors.primaryBlue),
@@ -170,7 +227,7 @@ class _SignInViewState extends State<SignInView> {
                 
                 // Login Button
                 ElevatedButton(
-                  onPressed: _handleSignIn,
+                  onPressed: _isLoading ? null : _handleSignIn,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.neonBlue,
                     minimumSize: const Size(double.infinity, 50),
@@ -178,13 +235,15 @@ class _SignInViewState extends State<SignInView> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Iniciar Sesión',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.white)
+                      : const Text(
+                          'Iniciar Sesión',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 32),
                 

@@ -2,31 +2,41 @@ import 'package:flutter/material.dart';
 import '../common/colors.dart';
 import '../components/coach/settings/sport_modal.dart';
 
-class CoachProfileSetupView extends StatefulWidget {
-  const CoachProfileSetupView({super.key});
+class ProfileSetupView extends StatefulWidget {
+  final String token;
+  final String email;
+  final bool isCoach; // Determina si es un coach o un fitter
+
+  const ProfileSetupView({
+    super.key, 
+    required this.token, 
+    required this.email,
+    required this.isCoach,
+  });
 
   @override
-  State<CoachProfileSetupView> createState() => _CoachProfileSetupViewState();
+  State<ProfileSetupView> createState() => _ProfileSetupViewState();
 }
 
-class _CoachProfileSetupViewState extends State<CoachProfileSetupView> {
-  final TextEditingController _nameController = TextEditingController();
+class _ProfileSetupViewState extends State<ProfileSetupView> {
   final TextEditingController _descriptionController = TextEditingController();
+  final TextEditingController _ageController = TextEditingController();
   List<String> selectedSports = [];
+  bool _isLoading = false;
   
   void _addSport() {
-    final TextEditingController _sportController = TextEditingController();
+    final TextEditingController sportController = TextEditingController();
     showDialog(
       context: context,
       builder: (context) {
         return AddSportModal(
-          controller: _sportController,
+          controller: sportController,
           onAdd: () {
             // Add sport if not empty and not already added
-            if (_sportController.text.isNotEmpty && 
-                !selectedSports.contains(_sportController.text)) {
+            if (sportController.text.isNotEmpty && 
+                !selectedSports.contains(sportController.text)) {
               setState(() {
-                selectedSports.add(_sportController.text);
+                selectedSports.add(sportController.text);
               });
             }
             Navigator.of(context).pop();
@@ -36,10 +46,32 @@ class _CoachProfileSetupViewState extends State<CoachProfileSetupView> {
     );
   }
 
+  void _handleProfileCreation() {
+    setState(() {
+      _isLoading = true;
+    });
+    
+    // Simulamos un pequeño retraso
+    Future.delayed(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      
+      setState(() {
+        _isLoading = false;
+      });
+      
+      // Navegar a dashboard (simulado)
+      Navigator.pushAndRemoveUntil(
+        context,
+        MaterialPageRoute(builder: (context) => const DashboardPlaceholder()),
+        (route) => false,
+      );
+    });
+  }
+
   @override
   void dispose() {
-    _nameController.dispose();
     _descriptionController.dispose();
+    _ageController.dispose();
     super.dispose();
   }
 
@@ -101,12 +133,13 @@ class _CoachProfileSetupViewState extends State<CoachProfileSetupView> {
                 ),
                 const SizedBox(height: 32),
                 
-                // Name Field
+                // Age Field
                 TextField(
-                  controller: _nameController,
+                  controller: _ageController,
                   style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.number,
                   decoration: InputDecoration(
-                    hintText: 'Nombre y apellidos',
+                    hintText: 'Edad',
                     hintStyle: TextStyle(color: AppColors.gray),
                     filled: true,
                     fillColor: AppColors.darkGray.withAlpha(77),
@@ -142,71 +175,67 @@ class _CoachProfileSetupViewState extends State<CoachProfileSetupView> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 32),
                 
-                // Sports Training Section
-                Row(
-                  children: [
-                    const Text(
-                      "Entrenador de:",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    IconButton(
-                      icon: Icon(
-                        Icons.add_circle_outline,
-                        color: AppColors.neonBlue,
-                        size: 25,
-                      ),
-                      onPressed: _addSport,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // Sports Chips
-                Wrap(
-                  spacing: 8.0,
-                  runSpacing: 8.0,
-                  children: selectedSports.map((sport) {
-                    return SizedBox(
-                      width: 107,
-                      height: 23,
-                      child: Container(
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: AppColors.neonBlue.withAlpha(153),
-                          borderRadius: BorderRadius.circular(12),
+                // Sports Training Section (solo para coaches)
+                if (widget.isCoach) ...[
+                  const SizedBox(height: 32),
+                  Row(
+                    children: [
+                      const Text(
+                        "Entrenador de:",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
                         ),
-                        child: Text(
-                          sport,
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: Icon(
+                          Icons.add_circle_outline,
+                          color: AppColors.neonBlue,
+                          size: 25,
+                        ),
+                        onPressed: _addSport,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Sports Chips
+                  Wrap(
+                    spacing: 8.0,
+                    runSpacing: 8.0,
+                    children: selectedSports.map((sport) {
+                      return SizedBox(
+                        width: 107,
+                        height: 23,
+                        child: Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: AppColors.neonBlue.withAlpha(153),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            sport,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
-                ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                
                 const SizedBox(height: 48),
                 
                 // Create Account Button
                 ElevatedButton(
-                  onPressed: () {
-                    // Handle account creation and navigate to main app
-                    Navigator.pushAndRemoveUntil(
-                      context,
-                      MaterialPageRoute(builder: (context) => const DashboardPlaceholder()),
-                      (route) => false,
-                    );
-                  },
+                  onPressed: _isLoading ? null : _handleProfileCreation,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.neonBlue,
                     minimumSize: const Size(double.infinity, 50),
@@ -214,14 +243,16 @@ class _CoachProfileSetupViewState extends State<CoachProfileSetupView> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Crear cuenta',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.black)
+                      : const Text(
+                          'Crear cuenta',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black,
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 24),
               ],

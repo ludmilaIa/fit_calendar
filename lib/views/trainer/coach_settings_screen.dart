@@ -2,9 +2,49 @@ import 'package:flutter/material.dart';
 import '../../common/colors.dart';
 import '../../components/coach/settings/coach_profile.dart';
 import '../../components/coach/settings/coach_ranking.dart';
+import '../../services/auth_service.dart';
+import '../../signin.dart';
 
-class CoachSettingsScreen extends StatelessWidget {
+class CoachSettingsScreen extends StatefulWidget {
   const CoachSettingsScreen({super.key});
+
+  @override
+  State<CoachSettingsScreen> createState() => _CoachSettingsScreenState();
+}
+
+class _CoachSettingsScreenState extends State<CoachSettingsScreen> {
+  final authService = AuthService();
+
+  Future<void> handleLogout() async {
+    try {
+      final response = await authService.logout();
+      
+      if (!mounted) return;
+      
+      if (response['success']) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const SignInView()),
+          (route) => false,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(response['error'] ?? 'Error al cerrar sesión'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -83,14 +123,12 @@ class CoachSettingsScreen extends StatelessWidget {
                 height: 63,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.exitRed.withOpacity(0.3),
+                    backgroundColor: AppColors.exitRed.withAlpha(77),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  onPressed: () {
-                    // Handle logout
-                  },
+                  onPressed: handleLogout,
                   child: const Text(
                     'Salir',
                     style: TextStyle(

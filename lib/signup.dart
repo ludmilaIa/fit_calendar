@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'common/colors.dart';
 import 'common/toggle_button.dart';
-import 'views/coach_profile_setup.dart';
-import 'views/fitter_profile_setup.dart';
+import 'views/profile_setup.dart';
+import 'services/auth_service.dart';
+import 'package:logger/logger.dart';
+
+Logger logger = Logger();
 
 class SignUpView extends StatefulWidget {
   const SignUpView({super.key});
@@ -12,42 +15,112 @@ class SignUpView extends StatefulWidget {
 }
 
 class _SignUpViewState extends State<SignUpView> {
-  int selectedRole = 0; // 0 for Entrenador, 1 for Fitters
+  int selectedRole = 0; // 0 for Entrenador (coach), 1 for Fitters (student)
+  final List<String> roleOptions = ['Entrenador', 'Fitters']; // Textos visibles
+  final List<String> roleValues = ['Coach', 'Student']; // Valores para la API
+  final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
+  final AuthService _authService = AuthService();
+  bool _isLoading = false;
   String? _errorMessage;
 
-  void _handleSignUp() {
+  bool _isValidEmail(String email) {
+    // Expresión regular simple para validar email
+    return RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email);
+  }
+
+  void _handleSignUp() async {
+    final name = _nameController.text.trim();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+    final role = roleValues[selectedRole]; // Usar el valor correcto para la API
 
-    if (email.isEmpty || password.isEmpty) {
+    setState(() {
+      _errorMessage = null;
+      _isLoading = true;
+    });
+
+    // Validaciones
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
       setState(() {
-        _errorMessage = 'Por favor ingresa email y contraseña';
+        _errorMessage = 'Por favor ingresa todos los campos';
+        _isLoading = false;
       });
       return;
     }
 
-    // Navigate to appropriate profile setup based on role
-    if (selectedRole == 0) {
-      // Coach
+    if (!_isValidEmail(email)) {
+      setState(() {
+        _errorMessage = 'Por favor ingresa un email válido';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    if (password.length < 8) {
+      setState(() {
+        _errorMessage = 'La contraseña debe tener al menos 8 caracteres';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    if (password != confirmPassword) {
+      setState(() {
+        _errorMessage = 'Las contraseñas no coinciden';
+        _isLoading = false;
+      });
+      return;
+    }
+
+    // Log para verificar los valores enviados
+    logger.d('Enviando registro - Nombre: $name, Email: $email, Rol: $role');
+
+    final result = await _authService.register(
+      name: name,
+      email: email,
+      password: password,
+      passwordConfirmation: confirmPassword,
+      role: role,
+    );
+
+    setState(() {
+      _isLoading = false;
+    });
+
+    if (!mounted) return;
+
+    if (result['success']) {
+      // Store token for future API calls
+      final token = result['data']['token'];
+      
+      // Navigate to profile setup using the common view
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const CoachProfileSetupView()),
+        MaterialPageRoute(
+          builder: (context) => ProfileSetupView(
+            token: token,
+            email: email,
+            isCoach: selectedRole == 0, // true si es coach, false si es fitter
+          ),
+        ),
       );
     } else {
-      // Fitter
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const FitterProfileSetupView()),
-      );
+      setState(() {
+        _errorMessage = result['error'];
+      });
     }
   }
 
   @override
   void dispose() {
+    _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _confirmPasswordController.dispose();
     super.dispose();
   }
 
@@ -85,22 +158,45 @@ class _SignUpViewState extends State<SignUpView> {
 
                 // Role selection toggle
                 ToggleButtonGroup(
-                  options: const ['Entrenador', 'Fitters'],
+                  options: roleOptions, // Usar los textos visibles
                   onOptionSelected: (index) {
                     setState(() => selectedRole = index);
+                    logger.d('Rol seleccionado: ${roleOptions[index]} (${roleValues[index]})');
                   },
                 ),
                 const SizedBox(height: 48),
+
+                // Name input
+                TextField(
+                  controller: _nameController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Nombre completo',
+                    hintStyle: TextStyle(color: AppColors.gray),
+                    filled: true,
+                    fillColor: AppColors.darkGray.withAlpha(77),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primaryBlue),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.neonBlue, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
 
                 // Email input
                 TextField(
                   controller: _emailController,
                   style: const TextStyle(color: Colors.white),
+                  keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     hintText: 'Email',
                     hintStyle: TextStyle(color: AppColors.gray),
                     filled: true,
-                    fillColor: AppColors.darkGray.withOpacity(0.3),
+                    fillColor: AppColors.darkGray.withAlpha(77),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: AppColors.primaryBlue),
@@ -122,7 +218,29 @@ class _SignUpViewState extends State<SignUpView> {
                     hintText: 'Contraseña',
                     hintStyle: TextStyle(color: AppColors.gray),
                     filled: true,
-                    fillColor: AppColors.darkGray.withOpacity(0.3),
+                    fillColor: AppColors.darkGray.withAlpha(77),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.primaryBlue),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: AppColors.neonBlue, width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Confirm Password input
+                TextField(
+                  controller: _confirmPasswordController,
+                  obscureText: true,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    hintText: 'Confirmar Contraseña',
+                    hintStyle: TextStyle(color: AppColors.gray),
+                    filled: true,
+                    fillColor: AppColors.darkGray.withAlpha(77),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: AppColors.primaryBlue),
@@ -147,7 +265,7 @@ class _SignUpViewState extends State<SignUpView> {
 
                 // Register Button
                 ElevatedButton(
-                  onPressed: _handleSignUp,
+                  onPressed: _isLoading ? null : _handleSignUp,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.neonBlue,
                     minimumSize: const Size(double.infinity, 50),
@@ -155,13 +273,15 @@ class _SignUpViewState extends State<SignUpView> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
-                    'Registrate',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const CircularProgressIndicator(color: Colors.black)
+                      : const Text(
+                          'Registrate',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 32),
 
