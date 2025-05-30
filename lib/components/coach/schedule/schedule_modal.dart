@@ -10,15 +10,11 @@ class AddScheduleModal extends StatefulWidget {
 
 class _AddScheduleModalState extends State<AddScheduleModal> {
   String selectedSport = 'Futbol';
-  int selectedFrom = 0;
-  int selectedTo = 0;
   int selectedOnline = 0; // 0: Si, 1: No
   final TextEditingController precioController = TextEditingController();
   final TextEditingController ubicacionController = TextEditingController();
-
-  final List<String> times = [
-    '8:00 AM', '8:30 AM', '9:00 AM'
-  ];
+  final TextEditingController fromController = TextEditingController();
+  final TextEditingController toController = TextEditingController();
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +28,10 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const Text('Agregar disponibilidad', 
+                style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              
               const Text('Deporte', style: TextStyle(color: Colors.white, fontSize: 20)),
               const SizedBox(height: 8),
               Container(
@@ -44,23 +44,72 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
                 child: const Text('Futbol', style: TextStyle(color: Colors.white, fontSize: 16)),
               ),
               const SizedBox(height: 20),
-              const Text('Desde', style: TextStyle(color: Colors.white, fontSize: 20)),
-              const SizedBox(height: 8),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: List.generate(times.length, (i) => _timeButton(i, true)),
-                ),
+              
+              // Custom hours input
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Desde', style: TextStyle(color: Colors.white, fontSize: 20)),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: fromController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Ej: 9:00 AM',
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                            filled: true,
+                            fillColor: AppColors.cardBackground,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: AppColors.neonBlue, width: 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Hasta', style: TextStyle(color: Colors.white, fontSize: 20)),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: toController,
+                          style: const TextStyle(color: Colors.white),
+                          decoration: InputDecoration(
+                            hintText: 'Ej: 10:00 AM',
+                            hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                            filled: true,
+                            fillColor: AppColors.cardBackground,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: AppColors.neonBlue, width: 2),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 20),
-              const Text('Hasta', style: TextStyle(color: Colors.white, fontSize: 20)),
-              const SizedBox(height: 8),
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: List.generate(times.length, (i) => _timeButton(i, false)),
-                ),
-              ),
+              
               const SizedBox(height: 20),
               const Text('Online', style: TextStyle(color: Colors.white, fontSize: 20)),
               const SizedBox(height: 8),
@@ -76,6 +125,7 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
               const SizedBox(height: 8),
               TextField(
                 controller: precioController,
+                keyboardType: TextInputType.number,
                 style: const TextStyle(color: Colors.white),
                 decoration: InputDecoration(
                   hintText: 'Ingrese el precio',
@@ -136,8 +186,8 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
                       onPressed: () {
                         Navigator.of(context).pop({
                           'sport': selectedSport,
-                          'from': times[selectedFrom],
-                          'to': times[selectedTo],
+                          'from': fromController.text,
+                          'to': toController.text,
                           'online': selectedOnline == 0,
                           'precio': precioController.text,
                           'ubicacion': ubicacionController.text,
@@ -149,44 +199,6 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
                 ],
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _timeButton(int i, bool isFrom) {
-    bool isSelected = isFrom ? selectedFrom == i : selectedTo == i;
-    return Padding(
-      padding: const EdgeInsets.only(right: 12.0),
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            if (isFrom) {
-              selectedFrom = i;
-            } else {
-              selectedTo = i;
-            }
-          });
-        },
-        child: SizedBox(
-          width: 100,
-          height: 43,
-          child: Container(
-            decoration: BoxDecoration(
-              color: isSelected ? AppColors.neonBlue.withOpacity(0.6) : Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: isSelected ? Border.all(color: AppColors.primaryBlue, width: 2) : null,
-            ),
-            alignment: Alignment.center,
-            child: Text(
-              times[i],
-              style: TextStyle(
-                color: isSelected ? Colors.white : Colors.black,
-                fontSize: 18,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
           ),
         ),
       ),
@@ -228,6 +240,8 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
   void dispose() {
     precioController.dispose();
     ubicacionController.dispose();
+    fromController.dispose();
+    toController.dispose();
     super.dispose();
   }
 } 
