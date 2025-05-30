@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../common/colors.dart';
 import '../../components/coach/reservas/reservation_card.dart';
-import '../../components/coach/schedule/schedule_modal.dart';
 
 class CoachReservasView extends StatelessWidget {
   const CoachReservasView({super.key});
@@ -75,16 +74,6 @@ class CoachReservasView extends StatelessWidget {
             ],
           ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.neonBlue,
-        onPressed: () {
-          showDialog(
-            context: context,
-            builder: (context) => const AddScheduleModal(),
-          );
-        },
-        child: const Icon(Icons.add, color: Colors.black),
       ),
     );
   }

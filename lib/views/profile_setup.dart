@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import '../common/colors.dart';
 import '../list/sport.dart';
+import '../services/profile_service.dart';
+import 'trainer_view.dart';
+import 'fitter_view.dart';
 
 class ProfileSetupView extends StatefulWidget {
   final String token;
@@ -21,9 +24,11 @@ class ProfileSetupView extends StatefulWidget {
 class _ProfileSetupViewState extends State<ProfileSetupView> {
   final TextEditingController _descriptionController = TextEditingController();
   final TextEditingController _ageController = TextEditingController();
+  final ProfileService _profileService = ProfileService();
   List<String> selectedSports = [];
   bool _isLoading = false;
   String? selectedSport;
+  String? _errorMessage;
   
   // Lista de deportes disponibles from the imported file
   
@@ -36,26 +41,51 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
     }
   }
 
-  void _handleProfileCreation() {
+  void _handleProfileCreation() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
     });
     
-    // Simulamos un pequeño retraso
-    Future.delayed(const Duration(seconds: 1), () {
+    // Convertir edad a int si no está vacío
+    int? age;
+    if (_ageController.text.isNotEmpty) {
+      age = int.tryParse(_ageController.text);
+    }
+    
+    // Obtener descripción si no está vacía
+    String? description;
+    if (_descriptionController.text.isNotEmpty) {
+      description = _descriptionController.text;
+    }
+    
+    // Actualizar perfil en el API
+    final result = await _profileService.updateProfile(
+      age: age,
+      description: description,
+      token: widget.token,
+      // Remove sports from API call for now
+      // sports: widget.isCoach ? selectedSports : null,
+    );
+    
+    if (result['success']) {
+      // Navegar a la vista principal con navbar según el rol
       if (!mounted) return;
       
-      setState(() {
-        _isLoading = false;
-      });
-      
-      // Navegar a dashboard (simulado)
       Navigator.pushAndRemoveUntil(
         context,
-        MaterialPageRoute(builder: (context) => const DashboardPlaceholder()),
+        MaterialPageRoute(
+          builder: (context) => widget.isCoach 
+            ? const TrainerView() 
+            : const FitterView()
+        ),
         (route) => false,
       );
-    });
+    } else {
+      setState(() {
+        _errorMessage = result['error'] ?? 'Error al actualizar el perfil';
+      });
+    }
   }
 
   @override
@@ -243,6 +273,19 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
                   ),
                 ],
                 
+                // Error message if exists
+                if (_errorMessage != null) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    _errorMessage!,
+                    style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                
                 const SizedBox(height: 48),
                 
                 // Create Account Button
@@ -270,28 +313,6 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-// Temporary placeholder for dashboard
-class DashboardPlaceholder extends StatelessWidget {
-  const DashboardPlaceholder({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.softBlack,
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        backgroundColor: AppColors.darkBlue,
-      ),
-      body: const Center(
-        child: Text(
-          'Cuenta creada exitosamente',
-          style: TextStyle(color: Colors.white, fontSize: 18),
         ),
       ),
     );
