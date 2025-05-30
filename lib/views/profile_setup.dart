@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../common/colors.dart';
-import '../components/coach/settings/sport_modal.dart';
+import '../list/sport.dart';
 
 class ProfileSetupView extends StatefulWidget {
   final String token;
@@ -23,27 +23,17 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
   final TextEditingController _ageController = TextEditingController();
   List<String> selectedSports = [];
   bool _isLoading = false;
+  String? selectedSport;
   
-  void _addSport() {
-    final TextEditingController sportController = TextEditingController();
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AddSportModal(
-          controller: sportController,
-          onAdd: () {
-            // Add sport if not empty and not already added
-            if (sportController.text.isNotEmpty && 
-                !selectedSports.contains(sportController.text)) {
-              setState(() {
-                selectedSports.add(sportController.text);
-              });
-            }
-            Navigator.of(context).pop();
-          },
-        );
-      },
-    );
+  // Lista de deportes disponibles from the imported file
+  
+  void _addSelectedSport() {
+    if (selectedSport != null && !selectedSports.contains(selectedSport)) {
+      setState(() {
+        selectedSports.add(selectedSport!);
+        selectedSport = null; // Reset selection after adding
+      });
+    }
   }
 
   void _handleProfileCreation() {
@@ -179,27 +169,49 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
                 // Sports Training Section (solo para coaches)
                 if (widget.isCoach) ...[
                   const SizedBox(height: 32),
-                  Row(
-                    children: [
-                      const Text(
-                        "Entrenador de:",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                        ),
+                  const Text(
+                    "Entrenador de:",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // Dropdown para seleccionar deporte
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.darkGray.withAlpha(77),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        value: selectedSport,
+                        isExpanded: true,
+                        dropdownColor: AppColors.darkGray,
+                        icon: Icon(Icons.arrow_drop_down, color: AppColors.gray),
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                        hint: Text('Seleccionar deporte', style: TextStyle(color: AppColors.gray)),
+                        items: availableSports
+                            .where((sport) => !selectedSports.contains(sport))
+                            .map((String value) {
+                          return DropdownMenuItem<String>(
+                            value: value,
+                            child: Text(value),
+                          );
+                        }).toList(),
+                        onChanged: (String? value) {
+                          setState(() {
+                            selectedSport = value;
+                          });
+                          
+                          if (value != null) {
+                            _addSelectedSport();
+                          }
+                        },
                       ),
-                      const SizedBox(width: 12),
-                      IconButton(
-                        icon: Icon(
-                          Icons.add_circle_outline,
-                          color: AppColors.neonBlue,
-                          size: 25,
-                        ),
-                        onPressed: _addSport,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   
