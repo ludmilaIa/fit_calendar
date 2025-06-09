@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:table_calendar/table_calendar.dart';
 import '../../common/colors.dart';
 import '../../components/coach/schedule/schedule_modal.dart';
 import '../../components/coach/schedule/schedule_card.dart';
@@ -13,19 +12,8 @@ class TrainerScheduleView extends StatefulWidget {
 }
 
 class _TrainerScheduleViewState extends State<TrainerScheduleView> {
-  CalendarFormat _calendarFormat = CalendarFormat.week;
-  DateTime _focusedDay = DateTime.now();
-  DateTime? _selectedDay;
+  DateTime _selectedDay = DateTime.now();
   final Map<DateTime, List<TimeSlot>> _schedule = {};
-
-  String _formatDate(DateTime date) {
-    // Example: 10 de Abril
-    const months = [
-      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    return '${date.day} de ${months[date.month]}';
-  }
 
   String _formatTimeRange(TimeOfDay start, TimeOfDay end) {
     String format(TimeOfDay t) => '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
@@ -36,91 +24,50 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.softBlack,
-      appBar: AppBar(
-        backgroundColor: AppColors.softBlack,
-        title: const Text(
-          'Mi Horario',
-          style: TextStyle(color: Colors.white),
+      body: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 16.0),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Mi Horario',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 32,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.add, color: AppColors.neonBlue, size: 32),
+                    onPressed: _addTimeSlot,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: _buildTimeSlots(),
+            ),
+          ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: AppColors.neonBlue),
-            onPressed: _addTimeSlot,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          TableCalendar(
-            firstDay: DateTime.utc(2024, 1, 1),
-            lastDay: DateTime.utc(2025, 12, 31),
-            focusedDay: _focusedDay,
-            calendarFormat: _calendarFormat,
-            selectedDayPredicate: (day) {
-              return _selectedDay != null && isSameDay(_selectedDay, day);
-            },
-            onDaySelected: (selectedDay, focusedDay) {
-              setState(() {
-                _selectedDay = selectedDay;
-                _focusedDay = focusedDay;
-              });
-            },
-            onFormatChanged: (format) {
-              setState(() {
-                _calendarFormat = format;
-              });
-            },
-            calendarStyle: CalendarStyle(
-              selectedDecoration: BoxDecoration(
-                color: AppColors.neonBlue,
-                shape: BoxShape.circle,
-              ),
-              selectedTextStyle: const TextStyle(color: Colors.black),
-              todayDecoration: const BoxDecoration(),
-              defaultTextStyle: const TextStyle(color: Colors.white),
-              weekendTextStyle: const TextStyle(color: Colors.white),
-              disabledTextStyle: const TextStyle(color: Colors.grey),
-              disabledDecoration: const BoxDecoration(
-                color: Colors.transparent,
-              ),
-            ),
-            enabledDayPredicate: (day) {
-              final now = DateTime.now();
-              final today = DateTime(now.year, now.month, now.day);
-              return day.isAfter(today.subtract(const Duration(days: 1)));
-            },
-            headerStyle: HeaderStyle(
-              formatButtonVisible: true,
-              titleCentered: true,
-              formatButtonShowsNext: false,
-              formatButtonDecoration: BoxDecoration(
-                color: AppColors.neonBlue,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              formatButtonTextStyle: const TextStyle(color: Colors.black),
-              titleTextStyle: const TextStyle(color: Colors.white),
-            ),
-          ),
-          Expanded(
-            child: _buildTimeSlots(),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildTimeSlots() {
-    if (_selectedDay == null) {
+    final timeSlots = _getAllTimeSlots();
+    
+    if (timeSlots.isEmpty) {
       return const Center(
         child: Text(
-          'Selecciona un día para ver los horarios',
+          'No hay horarios disponibles',
           style: TextStyle(color: Colors.white),
         ),
       );
     }
 
-    final timeSlots = _schedule[_selectedDay] ?? [];
-    final dateString = _formatDate(_selectedDay!);
     return ListView.builder(
       itemCount: timeSlots.length,
       itemBuilder: (context, index) {
@@ -137,7 +84,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                 foregroundColor: slot.isAvailable ? AppColors.neonBlue : Colors.red,
               ),
               SlidableAction(
-                onPressed: (_) => _deleteTimeSlot(_selectedDay!, slot),
+                onPressed: (_) => _deleteTimeSlot(slot.date, slot),
                 backgroundColor: Colors.transparent,
                 icon: Icons.delete,
                 foregroundColor: Colors.red,
@@ -151,7 +98,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             ],
           ),
           child: ScheduleCard(
-            dateString: dateString,
+            dateString: "",  // Removing date string
             timeString: _formatTimeRange(slot.startTime, slot.endTime),
             sport: slot.sport,
             isAvailable: slot.isAvailable,
@@ -161,26 +108,27 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
     );
   }
 
-  void _addTimeSlot() async {
-    if (_selectedDay == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor selecciona un día primero'),
-          backgroundColor: AppColors.neonBlue,
-        ),
-      );
-      return;
-    }
+  // Get all time slots from all dates
+  List<TimeSlot> _getAllTimeSlots() {
+    List<TimeSlot> allSlots = [];
+    _schedule.forEach((date, slots) {
+      allSlots.addAll(slots);
+    });
+    return allSlots;
+  }
 
+  void _addTimeSlot() async {
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => const AddScheduleModal(),
+      builder: (context) => AddScheduleModal(),
     );
 
     if (result != null) {
       final from = result['from'] as String;
       final to = result['to'] as String;
       final sport = result['sport'] as String;
+      final selectedDate = result['date'] as DateTime? ?? _selectedDay;
+      
       // Parse time strings like '9:00 AM' to TimeOfDay
       TimeOfDay parseTime(String t) {
         final parts = t.split(' ');
@@ -194,12 +142,15 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
       final startTime = parseTime(from);
       final endTime = parseTime(to);
       setState(() {
-        _schedule[_selectedDay!] = [
-          ...?_schedule[_selectedDay!],
+        // Use the selected date from the modal to store the time slot
+        final dateKey = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+        _schedule[dateKey] = [
+          ...?_schedule[dateKey],
           TimeSlot(
             startTime: startTime,
             endTime: endTime,
             sport: sport,
+            date: selectedDate,
           ),
         ];
       });
@@ -227,12 +178,14 @@ class TimeSlot {
   final TimeOfDay startTime;
   final TimeOfDay endTime;
   final String sport;
+  final DateTime date;
   bool isAvailable;
 
   TimeSlot({
     required this.startTime,
     required this.endTime,
     required this.sport,
+    required this.date,
     this.isAvailable = true,
   });
 } 
