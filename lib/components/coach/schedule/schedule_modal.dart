@@ -15,6 +15,55 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
   final TextEditingController ubicacionController = TextEditingController();
   final TextEditingController fromController = TextEditingController();
   final TextEditingController toController = TextEditingController();
+  final TextEditingController dayController = TextEditingController();
+  final TextEditingController monthController = TextEditingController();
+  DateTime? selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize with current date
+    selectedDate = DateTime.now();
+    dayController.text = selectedDate!.day.toString();
+    monthController.text = _getMonthName(selectedDate!.month);
+  }
+
+  String _getMonthName(int month) {
+    const months = [
+      '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+      'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+    ];
+    return months[month];
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2025, 12),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: AppColors.neonBlue,
+              onPrimary: Colors.black,
+              surface: AppColors.cardBackground,
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (picked != null && picked != selectedDate) {
+      setState(() {
+        selectedDate = picked;
+        dayController.text = selectedDate!.day.toString();
+        monthController.text = _getMonthName(selectedDate!.month);
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,6 +79,34 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
             children: [
               const Text('Agregar disponibilidad', 
                 style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 20),
+              
+              // Date selection
+              const Text('Fecha', style: TextStyle(color: Colors.white, fontSize: 20)),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: () => _selectDate(context),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardBackground,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.primaryBlue, width: 1),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        selectedDate != null 
+                            ? '${selectedDate!.day} de ${_getMonthName(selectedDate!.month)}'
+                            : 'Seleccionar fecha',
+                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                      ),
+                      const Icon(Icons.calendar_today, color: Colors.white),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: 20),
               
               const Text('Deporte', style: TextStyle(color: Colors.white, fontSize: 20)),
@@ -191,6 +268,9 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
                           'online': selectedOnline == 0,
                           'precio': precioController.text,
                           'ubicacion': ubicacionController.text,
+                          'date': selectedDate,
+                          'day': dayController.text,
+                          'month': monthController.text,
                         });
                       },
                       child: const Text('Agregar', style: TextStyle(fontSize: 18)),
@@ -242,6 +322,8 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
     ubicacionController.dispose();
     fromController.dispose();
     toController.dispose();
+    dayController.dispose();
+    monthController.dispose();
     super.dispose();
   }
 } 
