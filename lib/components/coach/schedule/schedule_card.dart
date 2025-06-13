@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import '../../../common/colors.dart';
 
 class ScheduleCard extends StatelessWidget {
-  final String dateString; // e.g. '10 de Abril' - not used anymore
+  final String dateString; // e.g. '15 de Junio'
   final String timeString; // e.g. '9:00 - 10:00'
   final String sport;
   final bool isAvailable;
 
   const ScheduleCard({
     super.key,
-    required this.dateString, // kept for backward compatibility
+    required this.dateString,
     required this.timeString,
     required this.sport,
     required this.isAvailable,
@@ -34,7 +34,7 @@ class ScheduleCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                timeString,
+                '$dateString $timeString',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 16,
