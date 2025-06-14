@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import '../../common/colors.dart';
 import '../../components/fitters/trainer_info.dart';
 import '../../components/fitters/availability_trainer.dart';
+import '../../services/schedule_service.dart';
 
 class FitterExplorarView extends StatefulWidget {
   const FitterExplorarView({Key? key}) : super(key: key);
@@ -11,15 +13,16 @@ class FitterExplorarView extends StatefulWidget {
 }
 
 class _FitterExplorarViewState extends State<FitterExplorarView> {
+  final ScheduleService _scheduleService = ScheduleService();
+  
   String? selectedCoach;
   String? selectedMonth;
   String? selectedSport;
-
-  final List<String> coaches = [
-    'Entrenador',
-    'Emiliano Martinez',
-    'Monica Rodriguez',
-  ];
+  
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _availabilities = [];
+  Set<String> _coaches = {};
+  Set<String> _sports = {};
 
   final List<String> months = [
     'Mes',
@@ -37,31 +40,154 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
     'Diciembre',
   ];
 
-  final List<String> sports = [
-    'Deporte',
-    'Fútbol',
-    'Basket',
-    'Tennis',
-    'Natación',
-    'Strength',
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadAvailabilities();
+  }
 
-  final List<Map<String, String>> playerCards = [
-    {
-      'name': 'Emiliano Martinez',
-      'sport': 'Futbol',
-    },
-    {
-      'name': 'Monica Rodriguez',
-      'sport': 'Strength',
-    },
-  ];
+  Future<void> _loadAvailabilities() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await _scheduleService.getCoachAvailabilities();
+      
+      if (result['success']) {
+        final data = result['data'] as List<dynamic>;
+        
+        setState(() {
+          _availabilities = data.map((item) => Map<String, dynamic>.from(item)).toList();
+          
+          // Extract unique coaches and sports
+          _coaches.clear();
+          _sports.clear();
+          
+          for (var availability in _availabilities) {
+            // Extract coach name (from coach.user relationship)
+            if (availability['coach'] != null && 
+                availability['coach']['user'] != null && 
+                availability['coach']['user']['name'] != null) {
+              _coaches.add(availability['coach']['user']['name']);
+            }
+            
+            // Extract sport name (from sport relationship)
+            if (availability['sport'] != null && availability['sport']['name_es'] != null) {
+              _sports.add(availability['sport']['name_es']);
+            }
+          }
+        });
+        
+        developer.log('Disponibilidades cargadas: ${_availabilities.length}');
+        developer.log('Coaches encontrados: $_coaches');
+        developer.log('Deportes encontrados: $_sports');
+      } else {
+        developer.log('Error al cargar disponibilidades: ${result['error']}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al cargar datos: ${result['error']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      developer.log('Error inesperado: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error inesperado: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get filteredAvailabilities {
+    return _availabilities.where((availability) {
+      bool matchesCoach = selectedCoach == null || 
+                         selectedCoach == 'Entrenador' ||
+                         (availability['coach'] != null && 
+                          availability['coach']['user'] != null &&
+                          availability['coach']['user']['name'] == selectedCoach);
+      
+      bool matchesSport = selectedSport == null ||
+                         selectedSport == 'Deporte' ||
+                         (availability['sport'] != null &&
+                          availability['sport']['name_es'] == selectedSport);
+      
+      bool matchesMonth = selectedMonth == null ||
+                         selectedMonth == 'Mes' ||
+                         _dateMatchesMonth(availability['date'], selectedMonth!);
+      
+      return matchesCoach && matchesSport && matchesMonth;
+    }).toList();
+  }
+
+  bool _dateMatchesMonth(String? dateStr, String monthName) {
+    if (dateStr == null) return false;
+    
+    try {
+      final date = DateTime.parse(dateStr);
+      final monthIndex = months.indexOf(monthName);
+      return monthIndex > 0 && date.month == monthIndex;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupAvailabilitiesByCoach() {
+    final Map<String, List<Map<String, dynamic>>> groupedAvailabilities = {};
+    
+    for (var availability in filteredAvailabilities) {
+      final coachName = availability['coach']?['user']?['name'] ?? 'Entrenador desconocido';
+      
+      if (!groupedAvailabilities.containsKey(coachName)) {
+        groupedAvailabilities[coachName] = [];
+      }
+      
+      groupedAvailabilities[coachName]!.add(availability);
+    }
+    
+    return groupedAvailabilities;
+  }
+
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      const monthsSpanish = [
+        '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      ];
+      return '${date.day} de ${monthsSpanish[date.month]}';
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  String _getCoachSport(String coachName) {
+    final coachAvailabilities = _availabilities.where(
+      (av) => av['coach']?['user']?['name'] == coachName
+    );
+    
+    if (coachAvailabilities.isNotEmpty) {
+      return coachAvailabilities.first['sport']?['name_es'] ?? 'Deporte';
+    }
+    
+    return 'Deporte';
+  }
 
   @override
   Widget build(BuildContext context) {
-    String? coachSport;
-    if (selectedCoach == 'Emiliano Martinez') coachSport = 'Futbol';
-    if (selectedCoach == 'Monica Rodriguez') coachSport = 'Strength';
+    final groupedAvailabilities = _groupAvailabilitiesByCoach();
+    
     return Scaffold(
       backgroundColor: AppColors.softBlack,
       body: SafeArea(
@@ -92,12 +218,12 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
-                      value: selectedCoach ?? coaches[0],
+                      value: selectedCoach ?? 'Entrenador',
                       isExpanded: true,
                       dropdownColor: AppColors.cardBackground,
                       icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                       style: const TextStyle(color: Colors.white, fontSize: 18),
-                      items: coaches.map((String value) {
+                      items: ['Entrenador', ..._coaches].map((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
                           child: Text(
@@ -176,12 +302,12 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
-                            value: selectedSport ?? sports[0],
+                            value: selectedSport ?? 'Deporte',
                             isExpanded: true,
                             dropdownColor: AppColors.cardBackground,
                             icon: const Icon(Icons.arrow_drop_down, color: Colors.white),
                             style: const TextStyle(color: Colors.white, fontSize: 18),
-                            items: sports.map((String value) {
+                            items: ['Deporte', ..._sports].map((String value) {
                               return DropdownMenuItem<String>(
                                 value: value,
                                 child: Text(
@@ -207,48 +333,55 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
                 ],
               ),
               const SizedBox(height: 32),
-              Column(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EntrenadorDisponibilidadView(
-                            coachName: 'Emiliano Martinez',
-                            availableDates: [
-                              '10 de Mayo',
-                              '11 de Mayo',
-                              '12 de Mayo',
-                            ],
-                            selectedIndex: 2,
-                          ),
+              // Loading indicator or coach cards
+              Expanded(
+                child: _isLoading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.neonBlue,
                         ),
-                      );
-                    },
-                    child: EntrenadorInfoView.infoCard(name: 'Emiliano Martinez', sport: 'Futbol'),
-                  ),
-                  const SizedBox(height: 20),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EntrenadorDisponibilidadView(
-                            coachName: 'Monica Rodriguez',
-                            availableDates: [
-                              '15 de Mayo',
-                              '16 de Mayo',
-                              '17 de Mayo',
-                            ],
-                            selectedIndex: 0,
+                      )
+                    : groupedAvailabilities.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No hay disponibilidades para los filtros seleccionados',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          )
+                        : ListView.builder(
+                            itemCount: groupedAvailabilities.length,
+                            itemBuilder: (context, index) {
+                              final coachName = groupedAvailabilities.keys.elementAt(index);
+                              final coachAvailabilities = groupedAvailabilities[coachName]!;
+                              final coachSport = _getCoachSport(coachName);
+                              
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 20),
+                                child: GestureDetector(
+                                  onTap: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => EntrenadorDisponibilidadView(
+                                          coachName: coachName,
+                                          availabilities: coachAvailabilities,
+                                          selectedIndex: 0,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  child: EntrenadorInfoView.infoCard(
+                                    name: coachName,
+                                    sport: coachSport,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
-                        ),
-                      );
-                    },
-                    child: EntrenadorInfoView.infoCard(name: 'Monica Rodriguez', sport: 'Strength'),
-                  ),
-                ],
               ),
             ],
           ),

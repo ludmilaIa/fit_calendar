@@ -5,6 +5,7 @@ import '../../components/coach/schedule/schedule_card.dart';
 import '../../services/schedule_service.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:logger/logger.dart';
+import '../../services/auth_service.dart';
 
 final logger = Logger();
 class TrainerScheduleView extends StatefulWidget {
@@ -18,12 +19,33 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   final DateTime _selectedDay = DateTime.now();
   final Map<DateTime, List<TimeSlot>> _schedule = {};
   final ScheduleService _scheduleService = ScheduleService();
+  final AuthService _authService = AuthService();
   bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _loadCoachSchedule();
+    _initializeSchedule();
+  }
+  
+  Future<void> _initializeSchedule() async {
+    // Verify authentication before loading schedule
+    final token = await _authService.getToken();
+    if (token == null) {
+      logger.e('Usuario no autenticado - no se puede cargar el horario');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Error: Usuario no autenticado'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+    
+    logger.i('Usuario autenticado, cargando horario...');
+    await _loadCoachSchedule();
   }
 
   Future<void> _loadCoachSchedule() async {
@@ -32,17 +54,22 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
     });
 
     try {
+      logger.i('Cargando disponibilidades del coach logueado...');
       final result = await _scheduleService.getCoachAvailabilities();
+      
+      logger.i('Resultado de getCoachAvailabilities: ${result.toString()}');
       
       if (result['success']) {
         final data = result['data'];
-        
+        logger.i('Datos recibidos del servidor: $data');
         
         // Parse the response and populate _schedule
         if (data is List) {
           _schedule.clear();
+          logger.i('Total de disponibilidades recibidas: ${data.length}');
           
           for (var item in data) {
+            logger.d('Procesando item: $item');
             
             // Handle specific availability structure
             final dateStr = item['date'] as String?;
@@ -52,6 +79,10 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             final location = item['location'] as String? ?? '';
             final isOnline = item['is_online'] as bool? ?? false;
             final isAvailable = true; // Default to available for specific availabilities
+            
+            // Log the coach_id to verify it's only the logged-in user's data
+            final coachId = item['coach_id'];
+            logger.i('Disponibilidad del coach ID: $coachId');
             
             // Map sport ID to sport name (you might need to enhance this)
             String sport = 'Fútbol'; // Default
@@ -89,6 +120,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                       int.parse(dateParts[2]),
                     );
                   } else {
+                    logger.w('Formato de fecha inválido: $dateStr');
                     continue;
                   }
                 }
@@ -100,6 +132,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                 if (startTime != null && endTime != null) {
                   final dateKey = DateTime(date.year, date.month, date.day);
                   
+                  logger.d('Agregando disponibilidad: ${_formatDateString(date)} ${_formatTimeRange(startTime, endTime)} - $sport');
                   
                   _schedule[dateKey] = [
                     ...?_schedule[dateKey],
@@ -114,17 +147,20 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                     ),
                   ];
                 } else {
+                  logger.w('Error parseando tiempos: start=$startTimeStr, end=$endTimeStr');
                 }
               } catch (e) {
-                logger.e('Error parseando horarios: start=$startTimeStr, end=$endTimeStr');
+                logger.e('Error parseando horarios: start=$startTimeStr, end=$endTimeStr, error: $e');
               }
             } else {
-                logger.e('Faltan datos en el item: fecha=$dateStr, inicio=$startTimeStr, fin=$endTimeStr');
+                logger.w('Faltan datos en el item: fecha=$dateStr, inicio=$startTimeStr, fin=$endTimeStr');
             }
           }
           
+          logger.i('Total de disponibilidades procesadas: ${_getAllTimeSlots().length}');
           setState(() {});
         } else {
+          logger.w('Los datos recibidos no son una lista: $data');
         }
       } else {
         logger.e('Error del servidor: ${result['error']}');
@@ -139,6 +175,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         }
       }
     } catch (e) {
+      logger.e('Error inesperado al cargar disponibilidades: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

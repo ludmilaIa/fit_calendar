@@ -4,13 +4,13 @@ import 'date_detail_modal.dart';
 
 class EntrenadorDisponibilidadView extends StatefulWidget {
   final String coachName;
-  final List<String> availableDates;
+  final List<Map<String, dynamic>> availabilities;
   final int selectedIndex;
 
   const EntrenadorDisponibilidadView({
     Key? key,
     required this.coachName,
-    required this.availableDates,
+    required this.availabilities,
     this.selectedIndex = 0,
   }) : super(key: key);
 
@@ -27,8 +27,43 @@ class _EntrenadorDisponibilidadViewState extends State<EntrenadorDisponibilidadV
     selectedIndex = null;
   }
 
+  String _formatDate(String dateStr) {
+    try {
+      final date = DateTime.parse(dateStr);
+      const monthsSpanish = [
+        '', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+      ];
+      return '${date.day} de ${monthsSpanish[date.month]}';
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  Map<String, List<Map<String, dynamic>>> _groupAvailabilitiesByDate() {
+    final Map<String, List<Map<String, dynamic>>> groupedAvailabilities = {};
+    
+    for (var availability in widget.availabilities) {
+      final date = availability['date'];
+      if (date != null) {
+        final formattedDate = _formatDate(date);
+        
+        if (!groupedAvailabilities.containsKey(formattedDate)) {
+          groupedAvailabilities[formattedDate] = [];
+        }
+        
+        groupedAvailabilities[formattedDate]!.add(availability);
+      }
+    }
+    
+    return groupedAvailabilities;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final groupedAvailabilities = _groupAvailabilitiesByDate();
+    final dates = groupedAvailabilities.keys.toList();
+    
     return Scaffold(
       backgroundColor: AppColors.softBlack,
       body: SafeArea(
@@ -71,22 +106,27 @@ class _EntrenadorDisponibilidadViewState extends State<EntrenadorDisponibilidadV
               Wrap(
                 spacing: 24,
                 runSpacing: 16,
-                children: List.generate(widget.availableDates.length, (index) {
+                children: List.generate(dates.length, (index) {
                   final isSelected = selectedIndex != null && index == selectedIndex;
+                  final date = dates[index];
+                  final dateAvailabilities = groupedAvailabilities[date]!;
+                  
                   return GestureDetector(
                     onTap: () {
                       setState(() {
                         selectedIndex = index;
                       });
-                      if (index != null) {
-                        showDialog(
-                          context: context,
-                          barrierDismissible: true,
-                          builder: (context) {
-                            return DateDetailModal(date: widget.availableDates[index]);
-                          },
-                        );
-                      }
+                      showDialog(
+                        context: context,
+                        barrierDismissible: true,
+                        builder: (context) {
+                          return DateDetailModal(
+                            date: date,
+                            availabilities: dateAvailabilities,
+                            coachName: widget.coachName,
+                          );
+                        },
+                      );
                     },
                     child: Container(
                       width: 130,
@@ -97,7 +137,7 @@ class _EntrenadorDisponibilidadViewState extends State<EntrenadorDisponibilidadV
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        widget.availableDates[index],
+                        date,
                         style: const TextStyle(
                           color: Colors.black,
                           fontSize: 16,
