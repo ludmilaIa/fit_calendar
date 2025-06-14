@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 import '../../components/fitters/booking/reservation_card.dart';
+import '../../services/booking_service.dart';
+import '../../common/colors.dart';
 
 class FitterReservationsScreen extends StatefulWidget {
   const FitterReservationsScreen({super.key});
@@ -9,28 +12,176 @@ class FitterReservationsScreen extends StatefulWidget {
 }
 
 class _FitterReservationsScreenState extends State<FitterReservationsScreen> {
-  String? selectedCoach;
-  String? selectedMonth;
+  final BookingService _bookingService = BookingService();
+  
   String? selectedSport;
+  
+  bool _isLoading = false;
+  List<Map<String, dynamic>> _bookings = [];
+  Set<String> _sports = {};
 
-  // Mock data for demonstration
-  final List<Map<String, dynamic>> reservations = [
-    {
-      'date': DateTime(2024, 4, 11),
-      'coach': 'Emiliano Martinez',
-      'sport': 'Futbol',
-      'online': false,
-      'startTime': '10:00AM',
-      'endTime': '11:00AM',
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _loadBookings();
+  }
 
-  final List<String> coaches = ['Emiliano Martinez', 'Lionel Messi'];
-  final List<String> months = ['Abril', 'Mayo', 'Junio'];
-  final List<String> sports = ['Futbol', 'Tenis', 'Padel'];
+  Future<void> _loadBookings() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      final result = await _bookingService.getBookings();
+      
+      if (result['success']) {
+        final data = result['data'] as List<dynamic>;
+        
+        setState(() {
+          _bookings = data.map((item) => Map<String, dynamic>.from(item)).toList();
+          
+          // Extract unique sports
+          _sports.clear();
+          
+          for (var booking in _bookings) {
+            // Extract sport name - try different possible locations
+            String? sportName;
+            // Try specific_availability.sport first
+            sportName = booking['specific_availability']?['sport']?['name_es'];
+            // If not found, we might need to look elsewhere or use sport_id
+            if (sportName == null) {
+              final sportId = booking['specific_availability']?['sport_id'];
+              // Map common sport IDs to names (fallback)
+              if (sportId == 1) {
+                sportName = 'Fútbol';
+              } else if (sportId != null) {
+                sportName = 'Deporte $sportId';
+              }
+            }
+            
+            if (sportName != null) {
+              _sports.add(sportName);
+            }
+          }
+        });
+        
+        developer.log('Reservas cargadas: ${_bookings.length}');
+        developer.log('Deportes encontrados: $_sports');
+        String firstCoachName = 'N/A';
+        if (_bookings.isNotEmpty) {
+          firstCoachName = _bookings[0]['coach']?['user']?['name'] ?? 'N/A';
+        }
+        developer.log('Primera reserva coach: $firstCoachName');
+      } else {
+        developer.log('Error al cargar reservas: ${result['error']}');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error al cargar reservas: ${result['error']}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      developer.log('Error inesperado: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error inesperado: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> get filteredBookings {
+    return _bookings.where((booking) {
+      final sportId = booking['specific_availability']?['sport_id'];
+      
+      // Map sport ID to name for filtering
+      String? sportName;
+      if (sportId == 1) {
+        sportName = 'Fútbol';
+      } else if (sportId != null) {
+        sportName = 'Deporte $sportId';
+      }
+      
+      bool matchesSport = selectedSport == null ||
+                         selectedSport == 'Deporte' ||
+                         sportName == selectedSport;
+      
+      return matchesSport;
+    }).toList();
+  }
+
+  Map<String, dynamic> _transformBookingForCard(Map<String, dynamic> booking) {
+    final availability = booking['specific_availability'];
+    final coachName = booking['coach']?['user']?['name'] ?? 'Entrenador desconocido';
+    
+    // Get sport name from sport_id
+    String sportName = 'Deporte desconocido';
+    final sportId = availability?['sport_id'];
+    if (sportId == 1) {
+      sportName = 'Fútbol';
+    } else if (sportId != null) {
+      sportName = 'Deporte $sportId';
+    }
+    
+    final isOnline = availability?['is_online'] ?? false;
+    
+    // Parse date
+    DateTime? date;
+    try {
+      final dateStr = availability?['date'];
+      if (dateStr != null) {
+        date = DateTime.parse(dateStr);
+      }
+    } catch (e) {
+      date = DateTime.now();
+    }
+    
+    // Format times
+    String _formatTime(String? timeStr) {
+      if (timeStr == null) return '10:00AM';
+      try {
+        final parts = timeStr.split(':');
+        if (parts.length >= 2) {
+          int hour = int.parse(parts[0]);
+          int minute = int.parse(parts[1]);
+          
+          String period = hour >= 12 ? 'PM' : 'AM';
+          if (hour > 12) hour -= 12;
+          if (hour == 0) hour = 12;
+          
+          return '${hour}:${minute.toString().padLeft(2, '0')}$period';
+        }
+      } catch (e) {
+        // Return default if parsing fails
+      }
+      return timeStr;
+    }
+    
+    return {
+      'date': date ?? DateTime.now(),
+      'coach': coachName,
+      'sport': sportName,
+      'online': isOnline,
+      'startTime': _formatTime(availability?['start_time']),
+      'endTime': _formatTime(availability?['end_time']),
+      'originalBooking': booking, // Keep reference to original data
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
+    final filteredBookings = this.filteredBookings;
+    
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
@@ -49,64 +200,50 @@ class _FitterReservationsScreenState extends State<FitterReservationsScreen> {
             ),
             const SizedBox(height: 32),
             DropdownButtonFormField<String>(
-              value: selectedCoach,
-              decoration: _dropdownDecoration('Entrenador'),
-              items: coaches
-                  .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+              value: selectedSport,
+              decoration: _dropdownDecoration('Deporte'),
+              items: ['Deporte', ..._sports]
+                  .map((s) => DropdownMenuItem(value: s, child: Text(s)))
                   .toList(),
-              onChanged: (v) => setState(() => selectedCoach = v),
+              onChanged: (v) => setState(() => selectedSport = v),
               dropdownColor: const Color(0xFF4B4949),
               style: const TextStyle(color: Colors.white),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: selectedMonth,
-                    decoration: _dropdownDecoration('Mes'),
-                    items: months
-                        .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                        .toList(),
-                    onChanged: (v) => setState(() => selectedMonth = v),
-                    dropdownColor: const Color(0xFF4B4949),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    value: selectedSport,
-                    decoration: _dropdownDecoration('Deporte'),
-                    items: sports
-                        .map((s) => DropdownMenuItem(value: s, child: Text(s)))
-                        .toList(),
-                    onChanged: (v) => setState(() => selectedSport = v),
-                    dropdownColor: const Color(0xFF4B4949),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-              ],
-            ),
             const SizedBox(height: 32),
             Expanded(
-              child: reservations.isEmpty
+              child: _isLoading
                   ? Center(
-                      child: Text(
-                        'No has hecho reservas todavia',
-                        style: TextStyle(
-                          color: Colors.cyanAccent,
-                          fontSize: 22,
-                        ),
+                      child: CircularProgressIndicator(
+                        color: AppColors.neonBlue,
                       ),
                     )
-                  : ListView.builder(
-                      itemCount: reservations.length,
-                      itemBuilder: (context, i) {
-                        final r = reservations[i];
-                        return ReservationCard(reservation: r);
-                      },
-                    ),
+                  : filteredBookings.isEmpty
+                      ? Center(
+                          child: Text(
+                            'No has hecho reservas todavía',
+                            style: TextStyle(
+                              color: Colors.cyanAccent,
+                              fontSize: 22,
+                            ),
+                          ),
+                        )
+                      : RefreshIndicator(
+                          onRefresh: _loadBookings,
+                          color: AppColors.neonBlue,
+                          child: ListView.builder(
+                            itemCount: filteredBookings.length,
+                            itemBuilder: (context, i) {
+                              final booking = filteredBookings[i];
+                              final transformedBooking = _transformBookingForCard(booking);
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 16),
+                                child: ReservationCard(
+                                  reservation: transformedBooking,
+                                ),
+                              );
+                            },
+                          ),
+                        ),
             ),
           ],
         ),
