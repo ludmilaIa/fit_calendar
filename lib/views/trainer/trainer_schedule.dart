@@ -55,7 +55,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
 
     try {
       logger.i('Cargando disponibilidades del coach logueado...');
-      final result = await _scheduleService.getCoachAvailabilities();
+      final result = await _scheduleService.getOwnCoachAvailabilities();
       
       logger.i('Resultado de getCoachAvailabilities: ${result.toString()}');
       

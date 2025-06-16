@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import '../../../common/colors.dart';
 import '../../../services/profile_service.dart';
+import '../../../services/sports_service.dart';
 import 'sport_modal.dart';
 
 class CoachProfileView extends StatefulWidget {
@@ -13,18 +14,20 @@ class CoachProfileView extends StatefulWidget {
 
 class _CoachProfileViewState extends State<CoachProfileView> {
   final ProfileService _profileService = ProfileService();
+  final SportsService _sportsService = SportsService();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   
   bool _isLoading = false;
   String? _errorMessage;
   Map<String, dynamic>? _profileData;
-  List<String> _sports = [];
+  List<Sport> _sports = [];
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadSports();
   }
 
   Future<void> _loadProfile() async {
@@ -50,18 +53,8 @@ class _CoachProfileViewState extends State<CoachProfileView> {
           _nameController.text = data['name'] ?? '';
           _descriptionController.text = data['description'] ?? '';
           
-          // Handle sports data
-          if (data['sports'] != null) {
-            if (data['sports'] is List) {
-              _sports = List<String>.from(data['sports'].map((sport) => 
-                sport is String ? sport : sport['name_es'] ?? sport['name'] ?? 'Deporte'
-              ));
-            }
-          }
-          
           developer.log('Mapped name: ${data['name']}');
           developer.log('Mapped description: ${data['description']}');
-          developer.log('Mapped sports: $_sports');
         });
       } else {
         setState(() {
@@ -77,6 +70,53 @@ class _CoachProfileViewState extends State<CoachProfileView> {
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _loadSports() async {
+    try {
+      final result = await _sportsService.getCoachSports();
+      
+      if (result['success']) {
+        final data = result['data'];
+        developer.log('Sports data received: $data');
+        
+        setState(() {
+          if (data['sports'] != null && data['sports'] is List) {
+            _sports = (data['sports'] as List)
+                .map((sportJson) => Sport.fromJson(sportJson))
+                .toList();
+          } else {
+            _sports = [];
+          }
+        });
+        
+        developer.log('Loaded ${_sports.length} sports');
+      } else {
+        developer.log('Error loading sports: ${result['error']}');
+        // Don't show error for sports, just keep empty list
+        setState(() {
+          _sports = [];
+        });
+      }
+    } catch (e) {
+      developer.log('Exception loading sports: $e');
+      setState(() {
+        _sports = [];
+      });
+    }
+  }
+
+  void _onSportAdded(Sport sport) {
+    setState(() {
+      _sports.add(sport);
+    });
+    // Reload sports to get the complete data from server
+    _loadSports();
+  }
+
+  void _onSportError() {
+    // Could show additional error handling here if needed
+    developer.log('Error adding sport');
   }
 
   @override
@@ -279,17 +319,31 @@ class _CoachProfileViewState extends State<CoachProfileView> {
                                   ),
                                 ]
                               : _sports.map((sport) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
                                     color: AppColors.neonBlue,
                                     borderRadius: BorderRadius.circular(12),
                                   ),
-                                  child: Text(
-                                    sport,
-                                    style: const TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 16,
-                                    ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        sport.specificLocation,
+                                        style: const TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        '\$${sport.specificPrice.toStringAsFixed(2)} - ${sport.sessionDurationMinutes}min',
+                                        style: const TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 )).toList(),
                           ),
@@ -298,16 +352,12 @@ class _CoachProfileViewState extends State<CoachProfileView> {
                         IconButton(
                           icon: const Icon(Icons.add, color: AppColors.neonBlue),
                           onPressed: () {
-                            final TextEditingController controller = TextEditingController();
                             showDialog(
                               context: context,
                               builder: (context) {
                                 return AddSportModal(
-                                  controller: controller,
-                                  onAdd: () {
-                                    // Add action here
-                                    Navigator.of(context).pop();
-                                  },
+                                  onSportAdded: _onSportAdded,
+                                  onError: _onSportError,
                                 );
                               },
                             );
