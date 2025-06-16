@@ -83,6 +83,7 @@ class ProfileService {
       final combinedData = Map<String, dynamic>.from(coachData);
       combinedData['user'] = userData;
       combinedData['name'] = userData['name'];
+      combinedData['description'] = userData['description'];
       
       developer.log('Combined coach and user data: $combinedData');
       
