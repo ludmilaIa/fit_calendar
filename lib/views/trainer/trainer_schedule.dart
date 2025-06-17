@@ -396,12 +396,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             motion: const DrawerMotion(),
             children: [
               SlidableAction(
-                onPressed: (_) => _toggleTimeSlot(slot),
-                backgroundColor: Colors.transparent,
-                icon: slot.isAvailable ? Icons.lock_open : Icons.lock,
-                foregroundColor: slot.isAvailable ? AppColors.neonBlue : Colors.red,
-              ),
-              SlidableAction(
                 onPressed: (_) => _deleteTimeSlot(slot.date, slot),
                 backgroundColor: Colors.transparent,
                 icon: Icons.delete,
@@ -419,7 +413,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             dateString: _formatDateString(slot.date),
             timeString: _formatTimeRange(slot.startTime, slot.endTime),
             sport: slot.sport,
-            isAvailable: slot.isAvailable,
+            isAvailable: true, // Always show as available since we removed the toggle
           ),
         );
       },
@@ -553,14 +547,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
           });
         }
       }
-    }
-  }
-
-  void _toggleTimeSlot(TimeSlot slot) {
-    if (mounted) {
-      setState(() {
-        slot.isAvailable = !slot.isAvailable;
-      });
     }
   }
 

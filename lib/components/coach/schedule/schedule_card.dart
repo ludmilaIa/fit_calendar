@@ -51,10 +51,10 @@ class ScheduleCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          Text(
-            isAvailable ? 'Disponible' : 'Ocupado',
+          const Text(
+            'Disponible',
             style: TextStyle(
-              color: isAvailable ? AppColors.neonBlue : Colors.red,
+              color: AppColors.neonBlue,
               fontSize: 16,
               fontWeight: FontWeight.w500,
             ),
