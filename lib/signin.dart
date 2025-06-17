@@ -51,7 +51,7 @@ class _SignInViewState extends State<SignInView> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => userRole == 'trainer' || userRole == 'Coach'
+              builder: (context) => userRole == 'Coach' || userRole == 'trainer'
                   ? const TrainerView()
                   : const FitterView(),
             ),
@@ -99,7 +99,7 @@ class _SignInViewState extends State<SignInView> {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => userRole == 'trainer'
+            builder: (context) => userRole == 'Coach' || userRole == 'trainer'
                 ? const TrainerView()
                 : const FitterView(),
           ),
