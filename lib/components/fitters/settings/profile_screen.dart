@@ -31,7 +31,7 @@ class _FitterProfileScreenState extends State<FitterProfileScreen> {
     });
 
     try {
-      final result = await _profileService.getCoachProfile();
+      final result = await _profileService.getUserProfile();
       
       if (result['success']) {
         final data = result['data'];

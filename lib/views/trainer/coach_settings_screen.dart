@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../common/colors.dart';
 import '../../components/coach/settings/coach_profile.dart';
-import '../../components/coach/settings/coach_ranking.dart';
 import '../../services/auth_service.dart';
 import '../../signin.dart';
 
@@ -88,23 +87,6 @@ class _CoachSettingsScreenState extends State<CoachSettingsScreen> {
                               context,
                               MaterialPageRoute(
                                 builder: (context) => const CoachProfileView(),
-                              ),
-                            );
-                          },
-                        ),
-                        const Divider(color: Colors.white24, height: 1),
-                        ListTile(
-                          title: const Text('Ranking', style: TextStyle(color: Colors.white, fontSize: 16)),
-                          trailing: SizedBox(
-                            width: 9.75,
-                            height: 16.07,
-                            child: const Icon(Icons.arrow_forward_ios, color: Colors.blueAccent),
-                          ),
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const CoachRankingView(),
                               ),
                             );
                           },
