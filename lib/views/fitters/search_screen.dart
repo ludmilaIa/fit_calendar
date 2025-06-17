@@ -47,12 +47,16 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
   }
 
   Future<void> _loadAvailabilities() async {
+    if (!mounted) return;
+    
     setState(() {
       _isLoading = true;
     });
 
     try {
       final result = await _scheduleService.getCoachAvailabilities();
+      
+      if (!mounted) return;
       
       if (result['success']) {
         final data = result['data'] as List<dynamic>;
@@ -104,9 +108,11 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -143,17 +149,19 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
     }
   }
 
-  Map<String, List<Map<String, dynamic>>> _groupAvailabilitiesByCoach() {
+  Map<String, List<Map<String, dynamic>>> _groupAvailabilitiesByCoachAndSport() {
     final Map<String, List<Map<String, dynamic>>> groupedAvailabilities = {};
     
     for (var availability in filteredAvailabilities) {
       final coachName = availability['coach']?['user']?['name'] ?? 'Entrenador desconocido';
+      final sportName = availability['sport']?['name_es'] ?? 'Deporte desconocido';
+      final key = '$coachName - $sportName';
       
-      if (!groupedAvailabilities.containsKey(coachName)) {
-        groupedAvailabilities[coachName] = [];
+      if (!groupedAvailabilities.containsKey(key)) {
+        groupedAvailabilities[key] = [];
       }
       
-      groupedAvailabilities[coachName]!.add(availability);
+      groupedAvailabilities[key]!.add(availability);
     }
     
     return groupedAvailabilities;
@@ -172,21 +180,23 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
     }
   }
 
-  String _getCoachSport(String coachName) {
-    final coachAvailabilities = _availabilities.where(
-      (av) => av['coach']?['user']?['name'] == coachName
-    );
-    
-    if (coachAvailabilities.isNotEmpty) {
-      return coachAvailabilities.first['sport']?['name_es'] ?? 'Deporte';
+  String _getCoachSportFromAvailabilities(List<Map<String, dynamic>> availabilities) {
+    if (availabilities.isNotEmpty) {
+      return availabilities.first['sport']?['name_es'] ?? 'Deporte';
     }
-    
     return 'Deporte';
+  }
+
+  String _getCoachNameFromAvailabilities(List<Map<String, dynamic>> availabilities) {
+    if (availabilities.isNotEmpty) {
+      return availabilities.first['coach']?['user']?['name'] ?? 'Entrenador desconocido';
+    }
+    return 'Entrenador desconocido';
   }
 
   @override
   Widget build(BuildContext context) {
-    final groupedAvailabilities = _groupAvailabilitiesByCoach();
+    final groupedAvailabilities = _groupAvailabilitiesByCoachAndSport();
     
     return Scaffold(
       backgroundColor: AppColors.softBlack,
@@ -355,9 +365,10 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
                         : ListView.builder(
                             itemCount: groupedAvailabilities.length,
                             itemBuilder: (context, index) {
-                              final coachName = groupedAvailabilities.keys.elementAt(index);
-                              final coachAvailabilities = groupedAvailabilities[coachName]!;
-                              final coachSport = _getCoachSport(coachName);
+                              final key = groupedAvailabilities.keys.elementAt(index);
+                              final availabilities = groupedAvailabilities[key]!;
+                              final coachName = _getCoachNameFromAvailabilities(availabilities);
+                              final coachSport = _getCoachSportFromAvailabilities(availabilities);
                               
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 20),
@@ -368,7 +379,7 @@ class _FitterExplorarViewState extends State<FitterExplorarView> {
                                       MaterialPageRoute(
                                         builder: (context) => EntrenadorDisponibilidadView(
                                           coachName: coachName,
-                                          availabilities: coachAvailabilities,
+                                          availabilities: availabilities,
                                           selectedIndex: 0,
                                         ),
                                       ),

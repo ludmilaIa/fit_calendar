@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import '../../../common/colors.dart';
 import '../../../services/profile_service.dart';
+import '../../../services/sports_service.dart';
 import 'sport_modal.dart';
 
 class CoachProfileView extends StatefulWidget {
@@ -13,18 +14,57 @@ class CoachProfileView extends StatefulWidget {
 
 class _CoachProfileViewState extends State<CoachProfileView> {
   final ProfileService _profileService = ProfileService();
+  final SportsService _sportsService = SportsService();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
   
   bool _isLoading = false;
   String? _errorMessage;
   Map<String, dynamic>? _profileData;
-  List<String> _sports = [];
+  List<Sport> _sports = [];
+  Map<int, String> _sportsMapping = {}; // Mapeo de ID a nombre de deporte
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
+    _loadAllSports(); // Cargar todos los deportes primero
+  }
+
+  Future<void> _loadAllSports() async {
+    try {
+      final result = await _sportsService.getAllSports();
+      
+      if (result['success']) {
+        final data = result['data'];
+        developer.log('All sports data received: $data');
+        
+        setState(() {
+          if (data is List) {
+            // Crear mapeo de ID a nombre
+            _sportsMapping = {};
+            for (var sport in data) {
+              final id = sport['id'] as int?;
+              final name = sport['name_es'] as String?;
+              if (id != null && name != null) {
+                _sportsMapping[id] = name;
+              }
+            }
+          }
+        });
+        
+        developer.log('Sports mapping created: $_sportsMapping');
+      } else {
+        developer.log('Error loading all sports: ${result['error']}');
+      }
+    } catch (e) {
+      developer.log('Exception loading all sports: $e');
+    }
+  }
+
+  String _getSportName(int? sportId) {
+    if (sportId == null) return 'Deporte desconocido';
+    return _sportsMapping[sportId] ?? 'Deporte ID $sportId';
   }
 
   Future<void> _loadProfile() async {
@@ -34,7 +74,7 @@ class _CoachProfileViewState extends State<CoachProfileView> {
     });
 
     try {
-      final result = await _profileService.getCoachProfileWithUser();
+      final result = await _profileService.getCoachProfileWithSports();
       
       if (result['success']) {
         final data = result['data'];
@@ -50,18 +90,45 @@ class _CoachProfileViewState extends State<CoachProfileView> {
           _nameController.text = data['name'] ?? '';
           _descriptionController.text = data['description'] ?? '';
           
-          // Handle sports data
-          if (data['sports'] != null) {
-            if (data['sports'] is List) {
-              _sports = List<String>.from(data['sports'].map((sport) => 
-                sport is String ? sport : sport['name_es'] ?? sport['name'] ?? 'Deporte'
-              ));
+          // Check if sports data is included in the profile
+          if (data['sports'] != null && data['sports'] is List) {
+            final serverSports = (data['sports'] as List)
+                .map((sportJson) {
+                  // Handle the pivot structure from the coach response
+                  if (sportJson['pivot'] != null) {
+                    return Sport(
+                      id: sportJson['pivot']['sport_id'],
+                      sportId: sportJson['id'],
+                      specificPrice: double.parse(sportJson['pivot']['specific_price'].toString()),
+                      specificLocation: sportJson['pivot']['specific_location'] ?? '',
+                      sessionDurationMinutes: sportJson['pivot']['session_duration_minutes'] ?? 60,
+                    );
+                  } else {
+                    return Sport.fromJson(sportJson);
+                  }
+                })
+                .toList();
+            
+            // Solo sobrescribir la lista de deportes si:
+            // 1. No tenemos deportes actualmente en la UI, O
+            // 2. El servidor devuelve más deportes de los que tenemos
+            if (_sports.isEmpty || serverSports.length > _sports.length) {
+              _sports = serverSports;
+            } else {
+              // Si el servidor devuelve menos deportes, puede ser un bug del backend
+              // Mantenemos la lista actual y logeamos el problema
+              developer.log('Servidor devuelve ${serverSports.length} deportes, pero UI tiene ${_sports.length}. Manteniendo UI.');
+            }
+          } else {
+            // Solo limpiar la lista si realmente no hay deportes Y no tenemos ninguno en la UI
+            if (_sports.isEmpty) {
+              _sports = [];
             }
           }
           
           developer.log('Mapped name: ${data['name']}');
           developer.log('Mapped description: ${data['description']}');
-          developer.log('Mapped sports: $_sports');
+          developer.log('Loaded ${_sports.length} sports from profile');
         });
       } else {
         setState(() {
@@ -76,6 +143,169 @@ class _CoachProfileViewState extends State<CoachProfileView> {
       setState(() {
         _isLoading = false;
       });
+    }
+  }
+
+  void _onSportAdded(Sport sport) {
+    // En lugar de recargar todo el perfil (que parece estar devolviendo solo el último deporte),
+    // agregamos el nuevo deporte a la lista existente
+    setState(() {
+      // Verificar que el deporte no esté ya en la lista para evitar duplicados
+      bool sportExists = _sports.any((existingSport) => existingSport.sportId == sport.sportId);
+      if (!sportExists) {
+        _sports.add(sport);
+        developer.log('Deporte agregado a la UI: ${_getSportName(sport.sportId)} (ID: ${sport.sportId})');
+      } else {
+        developer.log('Deporte ya existe en la lista: ${_getSportName(sport.sportId)}');
+      }
+    });
+    
+    // Opcionalmente, podemos hacer una recarga en segundo plano para sincronizar
+    // pero sin sobrescribir la UI hasta confirmar que tenemos todos los deportes
+    _loadProfile();
+  }
+
+  void _onSportError() {
+    // Could show additional error handling here if needed
+    developer.log('Error adding sport');
+  }
+
+  void _showDeleteConfirmationDialog(Sport sport) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.softBlack,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Colors.grey, width: 1),
+          ),
+          title: const Text(
+            'Eliminar Deporte',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          content: Text(
+            '¿Estás seguro de que quieres eliminar "${_getSportName(sport.sportId)}" de tu perfil?',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 16,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _deleteSport(sport);
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.red.withOpacity(0.2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Eliminar',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteSport(Sport sport) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Use the sport's ID for deletion
+      final sportIdToDelete = sport.id?.toString() ?? sport.sportId?.toString();
+      
+      if (sportIdToDelete == null) {
+        setState(() {
+          _errorMessage = 'Error: ID del deporte no válido';
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      developer.log('Eliminando deporte con ID: $sportIdToDelete');
+      
+      final result = await _profileService.deleteSport(sportIdToDelete);
+      
+      if (result['success']) {
+        // Remove the sport from the local list immediately for better UX
+        setState(() {
+          _sports.removeWhere((s) => s.id == sport.id || s.sportId == sport.sportId);
+          _isLoading = false;
+        });
+        
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${_getSportName(sport.sportId)} eliminado correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        
+        // Reload profile to sync with server
+        _loadProfile();
+      } else {
+        setState(() {
+          _errorMessage = result['error'] ?? 'Error al eliminar el deporte';
+          _isLoading = false;
+        });
+        
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_errorMessage!),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error de conexión: $e';
+        _isLoading = false;
+      });
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error de conexión: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
@@ -278,17 +508,36 @@ class _CoachProfileViewState extends State<CoachProfileView> {
                                     ),
                                   ),
                                 ]
-                              : _sports.map((sport) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.neonBlue,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    sport,
-                                    style: const TextStyle(
-                                      color: Colors.black,
-                                      fontSize: 16,
+                              : _sports.map((sport) => GestureDetector(
+                                  onTap: () {
+                                    _showDeleteConfirmationDialog(sport);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.neonBlue,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _getSportName(sport.sportId),
+                                          style: const TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          '\$${sport.specificPrice.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 )).toList(),
@@ -298,16 +547,12 @@ class _CoachProfileViewState extends State<CoachProfileView> {
                         IconButton(
                           icon: const Icon(Icons.add, color: AppColors.neonBlue),
                           onPressed: () {
-                            final TextEditingController controller = TextEditingController();
                             showDialog(
                               context: context,
                               builder: (context) {
                                 return AddSportModal(
-                                  controller: controller,
-                                  onAdd: () {
-                                    // Add action here
-                                    Navigator.of(context).pop();
-                                  },
+                                  onSportAdded: _onSportAdded,
+                                  onError: _onSportError,
                                 );
                               },
                             );

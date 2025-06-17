@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:developer' as developer;
 
 class ReservationCard extends StatelessWidget {
   final Map<String, dynamic> booking;
@@ -10,12 +11,18 @@ class ReservationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Debug: Log the booking structure to understand the data
+    developer.log('Booking data structure: ${booking}');
+    
     final dateTime = _parseDate(booking['date'] ?? booking['specific_availability']?['date']);
     final startTime = booking['specific_availability']?['start_time'] ?? '10:00';
     final endTime = booking['specific_availability']?['end_time'] ?? '11:00';
     final studentName = booking['student']?['name'] ?? booking['user']?['name'] ?? 'Usuario';
-    final sportName = booking['specific_availability']?['sport']?['name_es'] ?? 
-                     booking['sport']?['name_es'] ?? 'Deporte';
+    
+    // Improved sport name extraction with debug logging
+    final sportName = _getSportName();
+    developer.log('Sport name extracted: $sportName');
+    
     final isOnline = booking['specific_availability']?['is_online'] ?? false;
 
     return Container(
@@ -203,5 +210,83 @@ class ReservationCard extends StatelessWidget {
       // Return original string if formatting fails
     }
     return timeStr;
+  }
+
+  String _getSportName() {
+    // Try multiple paths to get the sport name
+    String? sportName;
+    
+    developer.log('Debugging sport name extraction...');
+    developer.log('Full booking data: ${booking}');
+    
+    // Path 1: specific_availability -> sport -> name_es
+    sportName = booking['specific_availability']?['sport']?['name_es'];
+    developer.log('Path 1 (specific_availability.sport.name_es): $sportName');
+    if (sportName != null && sportName.isNotEmpty) {
+      return sportName;
+    }
+    
+    // Path 2: sport -> name_es
+    sportName = booking['sport']?['name_es'];
+    developer.log('Path 2 (sport.name_es): $sportName');
+    if (sportName != null && sportName.isNotEmpty) {
+      return sportName;
+    }
+    
+    // Path 3: sport_name field
+    sportName = booking['sport_name'];
+    developer.log('Path 3 (sport_name): $sportName');
+    if (sportName != null && sportName.isNotEmpty) {
+      return sportName;
+    }
+    
+    // Path 4: specific_availability -> sport_name
+    sportName = booking['specific_availability']?['sport_name'];
+    developer.log('Path 4 (specific_availability.sport_name): $sportName');
+    if (sportName != null && sportName.isNotEmpty) {
+      return sportName;
+    }
+    
+    // Path 5: Try to find sport ID and convert it
+    final sportId = booking['specific_availability']?['sport_id'] ?? 
+                   booking['sport_id'] ?? 
+                   booking['specific_availability']?['sport']?['id'];
+    
+    developer.log('Sport ID found: $sportId');
+    
+    if (sportId != null) {
+      final convertedName = _getSportNameFromId(sportId);
+      developer.log('Converted sport name: $convertedName');
+      return convertedName;
+    }
+    
+    // Fallback
+    developer.log('Could not find sport name in booking data');
+    return 'Deporte';
+  }
+
+  String _getSportNameFromId(dynamic sportId) {
+    // Convert common sport IDs to names (this should ideally come from the server)
+    final sportMap = {
+      1: 'Fútbol',
+      2: 'Baloncesto', 
+      3: 'Tenis',
+      4: 'Natación',
+      5: 'Voleibol',
+      6: 'Gimnasia',
+      7: 'Boxeo',
+      8: 'Atletismo',
+      9: 'Ciclismo',
+      10: 'Yoga'
+    };
+    
+    int? id;
+    if (sportId is int) {
+      id = sportId;
+    } else if (sportId is String) {
+      id = int.tryParse(sportId);
+    }
+    
+    return sportMap[id] ?? 'Deporte $sportId';
   }
 } 

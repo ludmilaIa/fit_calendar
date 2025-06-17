@@ -3,11 +3,12 @@ import '../../common/colors.dart';
 import '../../components/coach/schedule/schedule_modal.dart';
 import '../../components/coach/schedule/schedule_card.dart';
 import '../../services/schedule_service.dart';
+import '../../services/profile_service.dart';
+import '../../services/sports_service.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:logger/logger.dart';
 import '../../services/auth_service.dart';
+import 'dart:developer' as developer;
 
-final logger = Logger();
 class TrainerScheduleView extends StatefulWidget {
   const TrainerScheduleView({super.key});
 
@@ -19,8 +20,12 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   final DateTime _selectedDay = DateTime.now();
   final Map<DateTime, List<TimeSlot>> _schedule = {};
   final ScheduleService _scheduleService = ScheduleService();
+  final ProfileService _profileService = ProfileService();
+  final SportsService _sportsService = SportsService();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+  List<Sport> _coachSports = []; // Deportes del coach
+  Map<int, String> _sportsMapping = {}; // Mapeo de ID a nombre de deporte
 
   @override
   void initState() {
@@ -32,7 +37,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
     // Verify authentication before loading schedule
     final token = await _authService.getToken();
     if (token == null) {
-      logger.e('Usuario no autenticado - no se puede cargar el horario');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -44,33 +48,133 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
       return;
     }
     
-    logger.i('Usuario autenticado, cargando horario...');
+    await Future.wait([
+      _loadSportsMapping(),
+      _loadCoachSports(),
+    ]);
+    
+    // Load schedule after we have the sports mapping
     await _loadCoachSchedule();
   }
 
-  Future<void> _loadCoachSchedule() async {
-    setState(() {
-      _isLoading = true;
-    });
-
+  Future<void> _loadSportsMapping() async {
     try {
-      logger.i('Cargando disponibilidades del coach logueado...');
-      final result = await _scheduleService.getCoachAvailabilities();
-      
-      logger.i('Resultado de getCoachAvailabilities: ${result.toString()}');
+      final result = await _sportsService.getAllSports();
       
       if (result['success']) {
         final data = result['data'];
-        logger.i('Datos recibidos del servidor: $data');
+        
+        if (data is List) {
+          final newMapping = <int, String>{};
+          for (var sport in data) {
+            final id = sport['id'] as int?;
+            final nameEs = sport['name_es'] as String?;
+            final name = sport['name'] as String?;
+            
+            if (id != null) {
+              // Prefer name_es, fallback to name
+              final sportName = nameEs ?? name ?? 'Deporte ID $id';
+              newMapping[id] = sportName;
+            }
+          }
+          
+          if (mounted) {
+            setState(() {
+              _sportsMapping = newMapping;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      // Keep only critical error logging
+    }
+  }
+
+  Future<void> _loadCoachSports() async {
+    try {
+      final result = await _profileService.getCoachProfileWithSports();
+      
+      if (result['success']) {
+        final data = result['data'];
+        
+        if (mounted) {
+          setState(() {
+            if (data['sports'] != null && data['sports'] is List) {
+              final serverSports = (data['sports'] as List)
+                  .map((sportJson) {
+                    // Handle the pivot structure from the coach response
+                    if (sportJson['pivot'] != null) {
+                      return Sport(
+                        id: sportJson['pivot']['sport_id'],
+                        sportId: sportJson['id'],
+                        specificPrice: double.parse(sportJson['pivot']['specific_price'].toString()),
+                        specificLocation: sportJson['pivot']['specific_location'] ?? '',
+                        sessionDurationMinutes: sportJson['pivot']['session_duration_minutes'] ?? 60,
+                      );
+                    } else {
+                      return Sport.fromJson(sportJson);
+                    }
+                  })
+                  .toList();
+              
+              // Solo sobrescribir la lista de deportes si:
+              // 1. No tenemos deportes actualmente, O
+              // 2. El servidor devuelve más deportes de los que tenemos
+              if (_coachSports.isEmpty || serverSports.length > _coachSports.length) {
+                _coachSports = serverSports;
+              } else {
+                // Si el servidor devuelve menos deportes, puede ser un bug del backend
+                // Mantenemos la lista actual y logeamos el problema
+                developer.log('Servidor devuelve ${serverSports.length} deportes en schedule, pero tenemos ${_coachSports.length}. Manteniendo lista actual.');
+              }
+            } else {
+              // Solo limpiar la lista si realmente no hay deportes Y no tenemos ninguno
+              if (_coachSports.isEmpty) {
+                _coachSports = [];
+              }
+            }
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            // Solo limpiar si no tenemos deportes cargados
+            if (_coachSports.isEmpty) {
+              _coachSports = [];
+            }
+          });
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          // Solo limpiar si no tenemos deportes cargados
+          if (_coachSports.isEmpty) {
+            _coachSports = [];
+          }
+        });
+      }
+    }
+  }
+
+  Future<void> _loadCoachSchedule() async {
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
+    try {
+      final result = await _scheduleService.getOwnCoachAvailabilities();
+      
+      if (result['success']) {
+        final data = result['data'];
         
         // Parse the response and populate _schedule
         if (data is List) {
           _schedule.clear();
-          logger.i('Total de disponibilidades recibidas: ${data.length}');
           
-          for (var item in data) {
-            logger.d('Procesando item: $item');
-            
+          for (var item in data) {            
             // Handle specific availability structure
             final dateStr = item['date'] as String?;
             final startTimeStr = item['start_time'] as String?;
@@ -79,29 +183,29 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             final location = item['location'] as String? ?? '';
             final isOnline = item['is_online'] as bool? ?? false;
             final isAvailable = true; // Default to available for specific availabilities
+            final availabilityId = item['id'] as int?; // Capturar el ID de la disponibilidad específica
             
-            // Log the coach_id to verify it's only the logged-in user's data
-            final coachId = item['coach_id'];
-            logger.i('Disponibilidad del coach ID: $coachId');
+            // Map sport ID to sport name using the loaded mapping
+            String sport = 'Deporte Desconocido'; // Default fallback
             
-            // Map sport ID to sport name (you might need to enhance this)
-            String sport = 'Fútbol'; // Default
             if (sportId != null) {
-              // You can expand this mapping based on your sport IDs
-              switch (sportId) {
-                case 1:
-                  sport = 'Fútbol';
-                  break;
-                default:
-                  sport = 'Deporte ID $sportId';
+              // First try to get from our loaded mapping
+              if (_sportsMapping.containsKey(sportId)) {
+                sport = _sportsMapping[sportId]!;
+              } else {
+                sport = 'Deporte ID $sportId';
               }
             }
             
-            // Try to get sport name from the sport object if available
-            if (item['sport'] != null && item['sport']['name_es'] != null) {
-              sport = item['sport']['name_es'] as String;
+            // Try to get sport name from the sport object if available (this takes priority)
+            if (item['sport'] != null) {
+              final sportObj = item['sport'];
+              if (sportObj['name_es'] != null) {
+                sport = sportObj['name_es'] as String;
+              } else if (sportObj['name'] != null) {
+                sport = sportObj['name'] as String;
+              }
             }
-            
             
             if (dateStr != null && startTimeStr != null && endTimeStr != null) {
               try {
@@ -120,7 +224,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                       int.parse(dateParts[2]),
                     );
                   } else {
-                    logger.w('Formato de fecha inválido: $dateStr');
                     continue;
                   }
                 }
@@ -132,8 +235,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                 if (startTime != null && endTime != null) {
                   final dateKey = DateTime(date.year, date.month, date.day);
                   
-                  logger.d('Agregando disponibilidad: ${_formatDateString(date)} ${_formatTimeRange(startTime, endTime)} - $sport');
-                  
                   _schedule[dateKey] = [
                     ...?_schedule[dateKey],
                     TimeSlot(
@@ -144,26 +245,21 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                       location: location,
                       isOnline: isOnline,
                       isAvailable: isAvailable,
+                      availabilityId: availabilityId,
                     ),
                   ];
-                } else {
-                  logger.w('Error parseando tiempos: start=$startTimeStr, end=$endTimeStr');
                 }
               } catch (e) {
-                logger.e('Error parseando horarios: start=$startTimeStr, end=$endTimeStr, error: $e');
+                // Continue processing other items if one fails
               }
-            } else {
-                logger.w('Faltan datos en el item: fecha=$dateStr, inicio=$startTimeStr, fin=$endTimeStr');
             }
           }
           
-          logger.i('Total de disponibilidades procesadas: ${_getAllTimeSlots().length}');
-          setState(() {});
-        } else {
-          logger.w('Los datos recibidos no son una lista: $data');
+          if (mounted) {
+            setState(() {});
+          }
         }
       } else {
-        logger.e('Error del servidor: ${result['error']}');
         // Show error message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -175,7 +271,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         }
       }
     } catch (e) {
-      logger.e('Error inesperado al cargar disponibilidades: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -185,9 +280,11 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -202,7 +299,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         return TimeOfDay(hour: hour, minute: minute);
       }
     } catch (e) {
-      logger.e('Error parsing time: $timeStr - $e');
+      // Ignore parsing errors and return null
     }
     return null;
   }
@@ -246,7 +343,13 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                       if (!_isLoading)
                         IconButton(
                           icon: const Icon(Icons.refresh, color: AppColors.neonBlue, size: 28),
-                          onPressed: _loadCoachSchedule,
+                          onPressed: () async {
+                            await Future.wait([
+                              _loadSportsMapping(),
+                              _loadCoachSports(),
+                            ]);
+                            await _loadCoachSchedule();
+                          },
                         ),
                       _isLoading
                           ? const CircularProgressIndicator(
@@ -335,15 +438,28 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   void _addTimeSlot() async {
     if (_isLoading) return;
 
+    // Check if coach has sports
+    if (_coachSports.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes agregar deportes a tu perfil antes de crear disponibilidades.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => AddScheduleModal(),
+      builder: (context) => AddScheduleModal(coachSports: _coachSports),
     );
 
     if (result != null) {
-      setState(() {
-        _isLoading = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
 
       final from = result['from'] as String;
       final to = result['to'] as String;
@@ -378,21 +494,24 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
           final startTime = parseTime(from);
           final endTime = parseTime(to);
           
-          setState(() {
-            // Use the selected date from the modal to store the time slot
-            final dateKey = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-            _schedule[dateKey] = [
-              ...?_schedule[dateKey],
-              TimeSlot(
-                startTime: startTime,
-                endTime: endTime,
-                sport: sport,
-                date: selectedDate,
-                location: location,
-                isOnline: isOnline,
-              ),
-            ];
-          });
+          if (mounted) {
+            setState(() {
+              // Use the selected date from the modal to store the time slot
+              final dateKey = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+              _schedule[dateKey] = [
+                ...?_schedule[dateKey],
+                TimeSlot(
+                  startTime: startTime,
+                  endTime: endTime,
+                  sport: sport,
+                  date: selectedDate,
+                  location: location,
+                  isOnline: isOnline,
+                  // availabilityId será null para slots creados localmente hasta que se recargue
+                ),
+              ];
+            });
+          }
 
           // Show success message
           if (mounted) {
@@ -428,23 +547,149 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
           );
         }
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
 
   void _toggleTimeSlot(TimeSlot slot) {
-    setState(() {
-      slot.isAvailable = !slot.isAvailable;
-    });
+    if (mounted) {
+      setState(() {
+        slot.isAvailable = !slot.isAvailable;
+      });
+    }
   }
 
-  void _deleteTimeSlot(DateTime day, TimeSlot slot) {
-    setState(() {
-      _schedule[day]?.remove(slot);
-    });
+  void _deleteTimeSlot(DateTime day, TimeSlot slot) async {
+    // Mostrar confirmación antes de eliminar
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.darkGray,
+          title: const Text(
+            '¿Eliminar disponibilidad?',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            'Se eliminará la disponibilidad del ${_formatDateString(slot.date)} de ${_formatTimeRange(slot.startTime, slot.endTime)} para ${slot.sport}',
+            style: TextStyle(color: AppColors.gray),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.gray.withAlpha(51),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.red.withAlpha(153),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Eliminar',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      // Si tiene availabilityId, eliminar del servidor
+      if (slot.availabilityId != null) {
+        setState(() {
+          _isLoading = true;
+        });
+
+        try {
+          final result = await _scheduleService.deleteSpecificAvailability(slot.availabilityId!);
+          
+          if (result['success']) {
+            // Eliminar del estado local
+            if (mounted) {
+              setState(() {
+                _schedule[day]?.remove(slot);
+                _isLoading = false;
+              });
+            }
+
+            // Mostrar mensaje de éxito
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Disponibilidad eliminada exitosamente'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+
+            // Recargar para sincronizar con el servidor
+            _loadCoachSchedule();
+          } else {
+            setState(() {
+              _isLoading = false;
+            });
+
+            // Mostrar mensaje de error
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: ${result['error'] ?? 'No se pudo eliminar la disponibilidad'}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          setState(() {
+            _isLoading = false;
+          });
+
+          // Mostrar mensaje de error
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error inesperado: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        // Si no tiene availabilityId, solo eliminar localmente (slot creado pero no guardado)
+        if (mounted) {
+          setState(() {
+            _schedule[day]?.remove(slot);
+          });
+        }
+      }
+    }
   }
 
   void _editTimeSlot(TimeSlot slot) {
@@ -459,6 +704,7 @@ class TimeSlot {
   final DateTime date;
   final String location;
   final bool isOnline;
+  final int? availabilityId; // ID de la disponibilidad específica del servidor
   bool isAvailable;
 
   TimeSlot({
@@ -468,6 +714,7 @@ class TimeSlot {
     required this.date,
     required this.location,
     required this.isOnline,
+    this.availabilityId,
     this.isAvailable = true,
   });
 } 
