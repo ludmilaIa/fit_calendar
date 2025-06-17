@@ -26,6 +26,31 @@ class _FitterReservationsScreenState extends State<FitterReservationsScreen> {
     _loadBookings();
   }
 
+  String _getSportNameFromId(dynamic sportId) {
+    // Convert common sport IDs to names
+    final sportMap = {
+      1: 'Fútbol',
+      2: 'Baloncesto', 
+      3: 'Tenis',
+      4: 'Natación',
+      5: 'Voleibol',
+      6: 'Gimnasia',
+      7: 'Boxeo',
+      8: 'Atletismo',
+      9: 'Ciclismo',
+      10: 'Yoga'
+    };
+    
+    int? id;
+    if (sportId is int) {
+      id = sportId;
+    } else if (sportId is String) {
+      id = int.tryParse(sportId);
+    }
+    
+    return sportMap[id] ?? 'Deporte $sportId';
+  }
+
   Future<void> _loadBookings() async {
     setState(() {
       _isLoading = true;
@@ -40,26 +65,13 @@ class _FitterReservationsScreenState extends State<FitterReservationsScreen> {
         setState(() {
           _bookings = data.map((item) => Map<String, dynamic>.from(item)).toList();
           
-          // Extract unique sports
+          // Extract unique sports using the proper mapping
           _sports.clear();
           
           for (var booking in _bookings) {
-            // Extract sport name - try different possible locations
-            String? sportName;
-            // Try specific_availability.sport first
-            sportName = booking['specific_availability']?['sport']?['name_es'];
-            // If not found, we might need to look elsewhere or use sport_id
-            if (sportName == null) {
-              final sportId = booking['specific_availability']?['sport_id'];
-              // Map common sport IDs to names (fallback)
-              if (sportId == 1) {
-                sportName = 'Fútbol';
-              } else if (sportId != null) {
-                sportName = 'Deporte $sportId';
-              }
-            }
-            
-            if (sportName != null) {
+            final sportId = booking['specific_availability']?['sport_id'];
+            if (sportId != null) {
+              final sportName = _getSportNameFromId(sportId);
               _sports.add(sportName);
             }
           }
@@ -104,12 +116,10 @@ class _FitterReservationsScreenState extends State<FitterReservationsScreen> {
     return _bookings.where((booking) {
       final sportId = booking['specific_availability']?['sport_id'];
       
-      // Map sport ID to name for filtering
+      // Use proper sport name mapping for filtering
       String? sportName;
-      if (sportId == 1) {
-        sportName = 'Fútbol';
-      } else if (sportId != null) {
-        sportName = 'Deporte $sportId';
+      if (sportId != null) {
+        sportName = _getSportNameFromId(sportId);
       }
       
       bool matchesSport = selectedSport == null ||
@@ -124,13 +134,11 @@ class _FitterReservationsScreenState extends State<FitterReservationsScreen> {
     final availability = booking['specific_availability'];
     final coachName = booking['coach']?['user']?['name'] ?? 'Entrenador desconocido';
     
-    // Get sport name from sport_id
+    // Get sport name using proper mapping
     String sportName = 'Deporte desconocido';
     final sportId = availability?['sport_id'];
-    if (sportId == 1) {
-      sportName = 'Fútbol';
-    } else if (sportId != null) {
-      sportName = 'Deporte $sportId';
+    if (sportId != null) {
+      sportName = _getSportNameFromId(sportId);
     }
     
     final isOnline = availability?['is_online'] ?? false;

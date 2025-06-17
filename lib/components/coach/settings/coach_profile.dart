@@ -22,12 +22,49 @@ class _CoachProfileViewState extends State<CoachProfileView> {
   String? _errorMessage;
   Map<String, dynamic>? _profileData;
   List<Sport> _sports = [];
+  Map<int, String> _sportsMapping = {}; // Mapeo de ID a nombre de deporte
 
   @override
   void initState() {
     super.initState();
     _loadProfile();
-    _loadSports();
+    _loadAllSports(); // Cargar todos los deportes primero
+  }
+
+  Future<void> _loadAllSports() async {
+    try {
+      final result = await _sportsService.getAllSports();
+      
+      if (result['success']) {
+        final data = result['data'];
+        developer.log('All sports data received: $data');
+        
+        setState(() {
+          if (data is List) {
+            // Crear mapeo de ID a nombre
+            _sportsMapping = {};
+            for (var sport in data) {
+              final id = sport['id'] as int?;
+              final name = sport['name_es'] as String?;
+              if (id != null && name != null) {
+                _sportsMapping[id] = name;
+              }
+            }
+          }
+        });
+        
+        developer.log('Sports mapping created: $_sportsMapping');
+      } else {
+        developer.log('Error loading all sports: ${result['error']}');
+      }
+    } catch (e) {
+      developer.log('Exception loading all sports: $e');
+    }
+  }
+
+  String _getSportName(int? sportId) {
+    if (sportId == null) return 'Deporte desconocido';
+    return _sportsMapping[sportId] ?? 'Deporte ID $sportId';
   }
 
   Future<void> _loadProfile() async {
@@ -37,7 +74,7 @@ class _CoachProfileViewState extends State<CoachProfileView> {
     });
 
     try {
-      final result = await _profileService.getCoachProfileWithUser();
+      final result = await _profileService.getCoachProfileWithSports();
       
       if (result['success']) {
         final data = result['data'];
@@ -53,8 +90,31 @@ class _CoachProfileViewState extends State<CoachProfileView> {
           _nameController.text = data['name'] ?? '';
           _descriptionController.text = data['description'] ?? '';
           
+          // Check if sports data is included in the profile
+          if (data['sports'] != null && data['sports'] is List) {
+            _sports = (data['sports'] as List)
+                .map((sportJson) {
+                  // Handle the pivot structure from the coach response
+                  if (sportJson['pivot'] != null) {
+                    return Sport(
+                      id: sportJson['pivot']['sport_id'],
+                      sportId: sportJson['id'],
+                      specificPrice: double.parse(sportJson['pivot']['specific_price'].toString()),
+                      specificLocation: sportJson['pivot']['specific_location'] ?? '',
+                      sessionDurationMinutes: sportJson['pivot']['session_duration_minutes'] ?? 60,
+                    );
+                  } else {
+                    return Sport.fromJson(sportJson);
+                  }
+                })
+                .toList();
+          } else {
+            _sports = [];
+          }
+          
           developer.log('Mapped name: ${data['name']}');
           developer.log('Mapped description: ${data['description']}');
+          developer.log('Loaded ${_sports.length} sports from profile');
         });
       } else {
         setState(() {
@@ -72,46 +132,10 @@ class _CoachProfileViewState extends State<CoachProfileView> {
     }
   }
 
-  Future<void> _loadSports() async {
-    try {
-      final result = await _sportsService.getCoachSports();
-      
-      if (result['success']) {
-        final data = result['data'];
-        developer.log('Sports data received: $data');
-        
-        setState(() {
-          if (data['sports'] != null && data['sports'] is List) {
-            _sports = (data['sports'] as List)
-                .map((sportJson) => Sport.fromJson(sportJson))
-                .toList();
-          } else {
-            _sports = [];
-          }
-        });
-        
-        developer.log('Loaded ${_sports.length} sports');
-      } else {
-        developer.log('Error loading sports: ${result['error']}');
-        // Don't show error for sports, just keep empty list
-        setState(() {
-          _sports = [];
-        });
-      }
-    } catch (e) {
-      developer.log('Exception loading sports: $e');
-      setState(() {
-        _sports = [];
-      });
-    }
-  }
-
   void _onSportAdded(Sport sport) {
-    setState(() {
-      _sports.add(sport);
-    });
-    // Reload sports to get the complete data from server
-    _loadSports();
+    // The sport creation response includes the updated coach data with sports
+    // So we should reload the profile to get the complete data
+    _loadProfile();
   }
 
   void _onSportError() {
@@ -329,7 +353,7 @@ class _CoachProfileViewState extends State<CoachProfileView> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
-                                        sport.specificLocation,
+                                        _getSportName(sport.sportId),
                                         style: const TextStyle(
                                           color: Colors.black,
                                           fontSize: 16,
@@ -337,7 +361,7 @@ class _CoachProfileViewState extends State<CoachProfileView> {
                                         ),
                                       ),
                                       Text(
-                                        '\$${sport.specificPrice.toStringAsFixed(2)} - ${sport.sessionDurationMinutes}min',
+                                        '\$${sport.specificPrice.toStringAsFixed(2)}',
                                         style: const TextStyle(
                                           color: Colors.black54,
                                           fontSize: 12,

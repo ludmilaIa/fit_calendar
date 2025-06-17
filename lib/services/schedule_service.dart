@@ -3,19 +3,70 @@ import 'dart:developer' as developer;
 import 'package:http/http.dart' as http;
 import '../config/env.dart';
 import 'auth_service.dart';
+import 'sports_service.dart';
 
 class ScheduleService {
   final String _baseUrl = Env.apiBaseUrl;
   final AuthService _authService = AuthService();
+  final SportsService _sportsService = SportsService();
+  Map<String, int> _sportsNameToId = {}; // Cache for name-to-ID mapping
 
-  // Map sport names to IDs (for now using index + 1 as ID)
-  int _getSportId(String sportName) {
-    // Simple mapping: using 1 as default for "Futbol"
-    // This can be enhanced with a proper mapping from backend
-    if (sportName.toLowerCase().contains('futbol') || sportName.toLowerCase().contains('fútbol')) {
-      return 1;
+  // Map sport names to IDs using the sports service
+  Future<int> _getSportId(String sportName) async {
+    // Load mapping if not cached
+    if (_sportsNameToId.isEmpty) {
+      await _loadSportsMapping();
     }
-    return 1; // Default to 1 for now
+    
+    // Find sport ID by name
+    final sportId = _sportsNameToId[sportName];
+    if (sportId != null) {
+      developer.log('Sport mapping: "$sportName" -> ID $sportId');
+      return sportId;
+    }
+    
+    // Fallback: try partial matching for common variations
+    for (final entry in _sportsNameToId.entries) {
+      if (entry.key.toLowerCase().contains(sportName.toLowerCase()) ||
+          sportName.toLowerCase().contains(entry.key.toLowerCase())) {
+        developer.log('Sport partial match: "$sportName" -> "${entry.key}" -> ID ${entry.value}');
+        return entry.value;
+      }
+    }
+    
+    developer.log('Warning: Sport "$sportName" not found, defaulting to ID 1');
+    return 1; // Default fallback
+  }
+
+  Future<void> _loadSportsMapping() async {
+    try {
+      final result = await _sportsService.getAllSports();
+      
+      if (result['success']) {
+        final data = result['data'];
+        if (data is List) {
+          _sportsNameToId.clear();
+          for (var sport in data) {
+            final id = sport['id'] as int?;
+            final nameEs = sport['name_es'] as String?;
+            final name = sport['name'] as String?;
+            
+            if (id != null) {
+              // Add both name_es and name as keys
+              if (nameEs != null) {
+                _sportsNameToId[nameEs] = id;
+              }
+              if (name != null && name != nameEs) {
+                _sportsNameToId[name] = id;
+              }
+            }
+          }
+          developer.log('Sports name-to-ID mapping loaded: $_sportsNameToId');
+        }
+      }
+    } catch (e) {
+      developer.log('Error loading sports mapping: $e');
+    }
   }
 
   Future<Map<String, dynamic>> createSpecificAvailability({
@@ -133,7 +184,7 @@ class ScheduleService {
 
       final requestBody = {
         'coach_id': coachId,
-        'sport_id': _getSportId(sport),
+        'sport_id': await _getSportId(sport),
         'date': '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}',
         'start_time': convertTimeFormat(startTime),
         'end_time': convertTimeFormat(endTime),

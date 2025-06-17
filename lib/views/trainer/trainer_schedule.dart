@@ -3,6 +3,8 @@ import '../../common/colors.dart';
 import '../../components/coach/schedule/schedule_modal.dart';
 import '../../components/coach/schedule/schedule_card.dart';
 import '../../services/schedule_service.dart';
+import '../../services/profile_service.dart';
+import '../../services/sports_service.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:logger/logger.dart';
 import '../../services/auth_service.dart';
@@ -19,8 +21,12 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   final DateTime _selectedDay = DateTime.now();
   final Map<DateTime, List<TimeSlot>> _schedule = {};
   final ScheduleService _scheduleService = ScheduleService();
+  final ProfileService _profileService = ProfileService();
+  final SportsService _sportsService = SportsService();
   final AuthService _authService = AuthService();
   bool _isLoading = false;
+  List<Sport> _coachSports = []; // Deportes del coach
+  Map<int, String> _sportsMapping = {}; // Mapeo de ID a nombre de deporte
 
   @override
   void initState() {
@@ -44,14 +50,116 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
       return;
     }
     
-    logger.i('Usuario autenticado, cargando horario...');
+    logger.i('Usuario autenticado, cargando horario y deportes...');
+    await Future.wait([
+      _loadSportsMapping(),
+      _loadCoachSports(),
+    ]);
+    
+    // Load schedule after we have the sports mapping
     await _loadCoachSchedule();
   }
 
+  Future<void> _loadSportsMapping() async {
+    try {
+      final result = await _sportsService.getAllSports();
+      
+      if (result['success']) {
+        final data = result['data'];
+        logger.i('Sports mapping data received: $data');
+        
+        if (data is List) {
+          final newMapping = <int, String>{};
+          for (var sport in data) {
+            final id = sport['id'] as int?;
+            final nameEs = sport['name_es'] as String?;
+            final name = sport['name'] as String?;
+            
+            if (id != null) {
+              // Prefer name_es, fallback to name
+              final sportName = nameEs ?? name ?? 'Deporte ID $id';
+              newMapping[id] = sportName;
+              logger.d('Mapped sport: ID=$id -> Name=$sportName');
+            }
+          }
+          
+          if (mounted) {
+            setState(() {
+              _sportsMapping = newMapping;
+            });
+          }
+          
+          logger.i('Sports mapping loaded successfully: $_sportsMapping');
+        } else {
+          logger.w('Sports data is not a list: $data');
+        }
+      } else {
+        logger.w('Error loading sports mapping: ${result['error']}');
+      }
+    } catch (e) {
+      logger.e('Exception loading sports mapping: $e');
+    }
+  }
+
+  Future<void> _loadCoachSports() async {
+    try {
+      logger.i('Cargando deportes del coach...');
+      final result = await _profileService.getCoachProfileWithSports();
+      
+      if (result['success']) {
+        final data = result['data'];
+        logger.i('Coach profile with sports received: $data');
+        
+        if (mounted) {
+          setState(() {
+            if (data['sports'] != null && data['sports'] is List) {
+              _coachSports = (data['sports'] as List)
+                  .map((sportJson) {
+                    // Handle the pivot structure from the coach response
+                    if (sportJson['pivot'] != null) {
+                      return Sport(
+                        id: sportJson['pivot']['sport_id'],
+                        sportId: sportJson['id'],
+                        specificPrice: double.parse(sportJson['pivot']['specific_price'].toString()),
+                        specificLocation: sportJson['pivot']['specific_location'] ?? '',
+                        sessionDurationMinutes: sportJson['pivot']['session_duration_minutes'] ?? 60,
+                      );
+                    } else {
+                      return Sport.fromJson(sportJson);
+                    }
+                  })
+                  .toList();
+            } else {
+              _coachSports = [];
+            }
+          });
+        }
+        
+        logger.i('Loaded ${_coachSports.length} coach sports');
+      } else {
+        logger.w('Error loading coach sports: ${result['error']}');
+        if (mounted) {
+          setState(() {
+            _coachSports = [];
+          });
+        }
+      }
+    } catch (e) {
+      logger.e('Exception loading coach sports: $e');
+      if (mounted) {
+        setState(() {
+          _coachSports = [];
+        });
+      }
+    }
+  }
+
   Future<void> _loadCoachSchedule() async {
-    setState(() {
-      _isLoading = true;
-    });
+    if (mounted) {
+      setState(() {
+        _isLoading = true;
+      });
+    }
 
     try {
       logger.i('Cargando disponibilidades del coach logueado...');
@@ -84,24 +192,39 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             final coachId = item['coach_id'];
             logger.i('Disponibilidad del coach ID: $coachId');
             
-            // Map sport ID to sport name (you might need to enhance this)
-            String sport = 'Fútbol'; // Default
+            // Debug logging for sport resolution
+            logger.d('Processing availability item: $item');
+            logger.d('Sport ID from server: $sportId');
+            logger.d('Available sports mapping: $_sportsMapping');
+            logger.d('Sport object from server: ${item['sport']}');
+            
+            // Map sport ID to sport name using the loaded mapping
+            String sport = 'Deporte Desconocido'; // Default fallback
+            
             if (sportId != null) {
-              // You can expand this mapping based on your sport IDs
-              switch (sportId) {
-                case 1:
-                  sport = 'Fútbol';
-                  break;
-                default:
-                  sport = 'Deporte ID $sportId';
+              // First try to get from our loaded mapping
+              if (_sportsMapping.containsKey(sportId)) {
+                sport = _sportsMapping[sportId]!;
+                logger.d('Sport name from mapping: ID=$sportId -> Name=$sport');
+              } else {
+                sport = 'Deporte ID $sportId';
+                logger.w('Sport ID $sportId not found in mapping, using fallback');
               }
             }
             
-            // Try to get sport name from the sport object if available
-            if (item['sport'] != null && item['sport']['name_es'] != null) {
-              sport = item['sport']['name_es'] as String;
+            // Try to get sport name from the sport object if available (this takes priority)
+            if (item['sport'] != null) {
+              final sportObj = item['sport'];
+              if (sportObj['name_es'] != null) {
+                sport = sportObj['name_es'] as String;
+                logger.d('Sport name from server object: $sport');
+              } else if (sportObj['name'] != null) {
+                sport = sportObj['name'] as String;
+                logger.d('Sport name from server object (name field): $sport');
+              }
             }
             
+            logger.i('Final sport resolved: ID=$sportId -> Name=$sport');
             
             if (dateStr != null && startTimeStr != null && endTimeStr != null) {
               try {
@@ -158,7 +281,9 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
           }
           
           logger.i('Total de disponibilidades procesadas: ${_getAllTimeSlots().length}');
-          setState(() {});
+          if (mounted) {
+            setState(() {});
+          }
         } else {
           logger.w('Los datos recibidos no son una lista: $data');
         }
@@ -185,9 +310,11 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         );
       }
     } finally {
-      setState(() {
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -246,7 +373,13 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                       if (!_isLoading)
                         IconButton(
                           icon: const Icon(Icons.refresh, color: AppColors.neonBlue, size: 28),
-                          onPressed: _loadCoachSchedule,
+                          onPressed: () async {
+                            await Future.wait([
+                              _loadSportsMapping(),
+                              _loadCoachSports(),
+                            ]);
+                            await _loadCoachSchedule();
+                          },
                         ),
                       _isLoading
                           ? const CircularProgressIndicator(
@@ -335,15 +468,28 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
   void _addTimeSlot() async {
     if (_isLoading) return;
 
+    // Check if coach has sports
+    if (_coachSports.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Debes agregar deportes a tu perfil antes de crear disponibilidades.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (context) => AddScheduleModal(),
+      builder: (context) => AddScheduleModal(coachSports: _coachSports),
     );
 
     if (result != null) {
-      setState(() {
-        _isLoading = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
 
       final from = result['from'] as String;
       final to = result['to'] as String;
@@ -378,21 +524,23 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
           final startTime = parseTime(from);
           final endTime = parseTime(to);
           
-          setState(() {
-            // Use the selected date from the modal to store the time slot
-            final dateKey = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
-            _schedule[dateKey] = [
-              ...?_schedule[dateKey],
-              TimeSlot(
-                startTime: startTime,
-                endTime: endTime,
-                sport: sport,
-                date: selectedDate,
-                location: location,
-                isOnline: isOnline,
-              ),
-            ];
-          });
+          if (mounted) {
+            setState(() {
+              // Use the selected date from the modal to store the time slot
+              final dateKey = DateTime(selectedDate.year, selectedDate.month, selectedDate.day);
+              _schedule[dateKey] = [
+                ...?_schedule[dateKey],
+                TimeSlot(
+                  startTime: startTime,
+                  endTime: endTime,
+                  sport: sport,
+                  date: selectedDate,
+                  location: location,
+                  isOnline: isOnline,
+                ),
+              ];
+            });
+          }
 
           // Show success message
           if (mounted) {
@@ -428,23 +576,29 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
           );
         }
       } finally {
-        setState(() {
-          _isLoading = false;
-        });
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+        }
       }
     }
   }
 
   void _toggleTimeSlot(TimeSlot slot) {
-    setState(() {
-      slot.isAvailable = !slot.isAvailable;
-    });
+    if (mounted) {
+      setState(() {
+        slot.isAvailable = !slot.isAvailable;
+      });
+    }
   }
 
   void _deleteTimeSlot(DateTime day, TimeSlot slot) {
-    setState(() {
-      _schedule[day]?.remove(slot);
-    });
+    if (mounted) {
+      setState(() {
+        _schedule[day]?.remove(slot);
+      });
+    }
   }
 
   void _editTimeSlot(TimeSlot slot) {

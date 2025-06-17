@@ -6,12 +6,14 @@ import 'auth_service.dart';
 
 class Sport {
   final int? id;
+  final int? sportId;
   final double specificPrice;
   final String specificLocation;
   final int sessionDurationMinutes;
 
   Sport({
     this.id,
+    this.sportId,
     required this.specificPrice,
     required this.specificLocation,
     required this.sessionDurationMinutes,
@@ -19,7 +21,8 @@ class Sport {
 
   Map<String, dynamic> toJson() {
     return {
-      if (id != null) 'id': id,
+      'id': id ?? sportId,
+      if (sportId != null) 'sport_id': sportId,
       'specific_price': specificPrice,
       'specific_location': specificLocation,
       'session_duration_minutes': sessionDurationMinutes,
@@ -29,6 +32,7 @@ class Sport {
   factory Sport.fromJson(Map<String, dynamic> json) {
     return Sport(
       id: json['id'],
+      sportId: json['sport_id'],
       specificPrice: json['specific_price']?.toDouble() ?? 0.0,
       specificLocation: json['specific_location'] ?? '',
       sessionDurationMinutes: json['session_duration_minutes'] ?? 0,
@@ -100,14 +104,14 @@ class SportsService {
     }
   }
 
-  /// Gets sports for a coach
-  /// GET /api/coach/sports
-  Future<Map<String, dynamic>> getCoachSports() async {
+  /// Gets all available sports from the system
+  /// GET /api/sports
+  Future<Map<String, dynamic>> getAllSports() async {
     try {
       final String? authToken = await _authService.getToken();
       
       if (authToken == null) {
-        developer.log('No hay token para obtener deportes');
+        developer.log('No hay token para obtener todos los deportes');
         return {
           'success': false,
           'error': 'No authentication token'
@@ -115,7 +119,7 @@ class SportsService {
       }
 
       final response = await http.get(
-        Uri.parse('$_baseUrl/api/coach/sports'),
+        Uri.parse('$_baseUrl/api/sports'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -123,7 +127,7 @@ class SportsService {
         },
       );
 
-      developer.log('Respuesta del servidor (${response.statusCode}): ${response.body}');
+      developer.log('Respuesta del servidor getAllSports (${response.statusCode}): ${response.body}');
       
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -141,11 +145,11 @@ class SportsService {
         
         return {
           'success': false,
-          'error': data['message'] ?? 'Error al obtener deportes',
+          'error': data['message'] ?? 'Error al obtener todos los deportes',
         };
       }
     } catch (e) {
-      developer.log('Error al obtener deportes: $e', error: e);
+      developer.log('Error al obtener todos los deportes: $e', error: e);
       return {
         'success': false,
         'error': 'Error de conexión: $e',

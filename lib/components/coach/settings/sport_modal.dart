@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../common/colors.dart';
 import '../../../services/sports_service.dart';
+import '../../../list/sport.dart';
 
 class AddSportModal extends StatefulWidget {
   final Function(Sport)? onSportAdded;
@@ -14,27 +15,32 @@ class AddSportModal extends StatefulWidget {
 }
 
 class _AddSportModalState extends State<AddSportModal> {
-  final TextEditingController _locationController = TextEditingController();
   final TextEditingController _priceController = TextEditingController();
-  final TextEditingController _durationController = TextEditingController();
   final SportsService _sportsService = SportsService();
   bool _isLoading = false;
+  String? _selectedSport;
 
   @override
   void dispose() {
-    _locationController.dispose();
     _priceController.dispose();
-    _durationController.dispose();
     super.dispose();
   }
 
   Future<void> _addSport() async {
-    if (_locationController.text.isEmpty ||
-        _priceController.text.isEmpty ||
-        _durationController.text.isEmpty) {
+    if (_selectedSport == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Por favor, completa todos los campos'),
+          content: Text('Por favor, selecciona un deporte'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (_priceController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor, ingresa un precio'),
           backgroundColor: Colors.red,
         ),
       );
@@ -42,7 +48,6 @@ class _AddSportModalState extends State<AddSportModal> {
     }
 
     final double? price = double.tryParse(_priceController.text);
-    final int? duration = int.tryParse(_durationController.text);
 
     if (price == null || price <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -54,25 +59,21 @@ class _AddSportModalState extends State<AddSportModal> {
       return;
     }
 
-    if (duration == null || duration <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor, ingresa una duración válida en minutos'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
-
     setState(() {
       _isLoading = true;
     });
 
     try {
+      // Encontrar el ID del deporte seleccionado
+      final selectedSportData = availableSports.firstWhere(
+        (sport) => sport['name'] == _selectedSport,
+      );
+
       final sport = Sport(
+        sportId: selectedSportData['id'] as int,
         specificPrice: price,
-        specificLocation: _locationController.text.trim(),
-        sessionDurationMinutes: duration,
+        specificLocation: '', // Provide empty string as default
+        sessionDurationMinutes: 60, // Provide 60 minutes as default
       );
 
       final result = await _sportsService.createSports([sport]);
@@ -153,6 +154,50 @@ class _AddSportModalState extends State<AddSportModal> {
     );
   }
 
+  Widget _buildSportDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Deporte',
+          style: TextStyle(color: Colors.white, fontSize: 16),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[700],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: DropdownButtonFormField<String>(
+            value: _selectedSport,
+            dropdownColor: Colors.grey[700],
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              border: InputBorder.none,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              hintText: 'Selecciona un deporte',
+              hintStyle: TextStyle(color: Colors.grey[400]),
+            ),
+            items: availableSports.map((sport) {
+              return DropdownMenuItem<String>(
+                value: sport['name'] as String,
+                child: Text(
+                  sport['name'] as String,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              );
+            }).toList(),
+            onChanged: (String? value) {
+              setState(() {
+                _selectedSport = value;
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -176,11 +221,7 @@ class _AddSportModalState extends State<AddSportModal> {
             ),
             const SizedBox(height: 24),
             
-            _buildTextField(
-              controller: _locationController,
-              label: 'Ubicación específica',
-              hint: 'Ej: Centro Deportivo',
-            ),
+            _buildSportDropdown(),
             const SizedBox(height: 16),
             
             _buildTextField(
@@ -190,17 +231,6 @@ class _AddSportModalState extends State<AddSportModal> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'^\d+\.?\d{0,2}')),
-              ],
-            ),
-            const SizedBox(height: 16),
-            
-            _buildTextField(
-              controller: _durationController,
-              label: 'Duración de sesión (minutos)',
-              hint: 'Ej: 60',
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
               ],
             ),
             const SizedBox(height: 24),
