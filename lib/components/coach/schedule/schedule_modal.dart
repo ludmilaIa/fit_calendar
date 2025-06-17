@@ -65,13 +65,29 @@ class _AddScheduleModalState extends State<AddScheduleModal> {
         // Ahora filtrar solo los deportes del coach
         setState(() {
           _coachSportNames = [];
-          if (widget.coachSports != null) {
+          if (widget.coachSports != null && widget.coachSports!.isNotEmpty) {
+            developer.log('Coach sports received: ${widget.coachSports!.length} deportes');
             for (var coachSport in widget.coachSports!) {
+              developer.log('Processing coach sport: ID=${coachSport.sportId}, Looking up in mapping...');
               final sportName = _sportsMapping[coachSport.sportId];
-              if (sportName != null && !_coachSportNames.contains(sportName)) {
-                _coachSportNames.add(sportName);
+              if (sportName != null) {
+                if (!_coachSportNames.contains(sportName)) {
+                  _coachSportNames.add(sportName);
+                  developer.log('Added sport: $sportName');
+                } else {
+                  developer.log('Sport already added: $sportName');
+                }
+              } else {
+                // Si no encontramos el nombre en el mapeo, agregamos un fallback
+                final fallbackName = 'Deporte ID ${coachSport.sportId}';
+                if (!_coachSportNames.contains(fallbackName)) {
+                  _coachSportNames.add(fallbackName);
+                  developer.log('Added fallback sport: $fallbackName');
+                }
               }
             }
+          } else {
+            developer.log('No coach sports received or empty list');
           }
         });
         

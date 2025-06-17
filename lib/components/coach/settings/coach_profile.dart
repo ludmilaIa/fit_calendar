@@ -92,7 +92,7 @@ class _CoachProfileViewState extends State<CoachProfileView> {
           
           // Check if sports data is included in the profile
           if (data['sports'] != null && data['sports'] is List) {
-            _sports = (data['sports'] as List)
+            final serverSports = (data['sports'] as List)
                 .map((sportJson) {
                   // Handle the pivot structure from the coach response
                   if (sportJson['pivot'] != null) {
@@ -108,8 +108,22 @@ class _CoachProfileViewState extends State<CoachProfileView> {
                   }
                 })
                 .toList();
+            
+            // Solo sobrescribir la lista de deportes si:
+            // 1. No tenemos deportes actualmente en la UI, O
+            // 2. El servidor devuelve más deportes de los que tenemos
+            if (_sports.isEmpty || serverSports.length > _sports.length) {
+              _sports = serverSports;
+            } else {
+              // Si el servidor devuelve menos deportes, puede ser un bug del backend
+              // Mantenemos la lista actual y logeamos el problema
+              developer.log('Servidor devuelve ${serverSports.length} deportes, pero UI tiene ${_sports.length}. Manteniendo UI.');
+            }
           } else {
-            _sports = [];
+            // Solo limpiar la lista si realmente no hay deportes Y no tenemos ninguno en la UI
+            if (_sports.isEmpty) {
+              _sports = [];
+            }
           }
           
           developer.log('Mapped name: ${data['name']}');
@@ -133,8 +147,21 @@ class _CoachProfileViewState extends State<CoachProfileView> {
   }
 
   void _onSportAdded(Sport sport) {
-    // The sport creation response includes the updated coach data with sports
-    // So we should reload the profile to get the complete data
+    // En lugar de recargar todo el perfil (que parece estar devolviendo solo el último deporte),
+    // agregamos el nuevo deporte a la lista existente
+    setState(() {
+      // Verificar que el deporte no esté ya en la lista para evitar duplicados
+      bool sportExists = _sports.any((existingSport) => existingSport.sportId == sport.sportId);
+      if (!sportExists) {
+        _sports.add(sport);
+        developer.log('Deporte agregado a la UI: ${_getSportName(sport.sportId)} (ID: ${sport.sportId})');
+      } else {
+        developer.log('Deporte ya existe en la lista: ${_getSportName(sport.sportId)}');
+      }
+    });
+    
+    // Opcionalmente, podemos hacer una recarga en segundo plano para sincronizar
+    // pero sin sobrescribir la UI hasta confirmar que tenemos todos los deportes
     _loadProfile();
   }
 

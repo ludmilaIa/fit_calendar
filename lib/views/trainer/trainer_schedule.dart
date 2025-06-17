@@ -7,6 +7,7 @@ import '../../services/profile_service.dart';
 import '../../services/sports_service.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../services/auth_service.dart';
+import 'dart:developer' as developer;
 
 class TrainerScheduleView extends StatefulWidget {
   const TrainerScheduleView({super.key});
@@ -99,7 +100,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         if (mounted) {
           setState(() {
             if (data['sports'] != null && data['sports'] is List) {
-              _coachSports = (data['sports'] as List)
+              final serverSports = (data['sports'] as List)
                   .map((sportJson) {
                     // Handle the pivot structure from the coach response
                     if (sportJson['pivot'] != null) {
@@ -115,22 +116,42 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                     }
                   })
                   .toList();
+              
+              // Solo sobrescribir la lista de deportes si:
+              // 1. No tenemos deportes actualmente, O
+              // 2. El servidor devuelve más deportes de los que tenemos
+              if (_coachSports.isEmpty || serverSports.length > _coachSports.length) {
+                _coachSports = serverSports;
+              } else {
+                // Si el servidor devuelve menos deportes, puede ser un bug del backend
+                // Mantenemos la lista actual y logeamos el problema
+                developer.log('Servidor devuelve ${serverSports.length} deportes en schedule, pero tenemos ${_coachSports.length}. Manteniendo lista actual.');
+              }
             } else {
-              _coachSports = [];
+              // Solo limpiar la lista si realmente no hay deportes Y no tenemos ninguno
+              if (_coachSports.isEmpty) {
+                _coachSports = [];
+              }
             }
           });
         }
       } else {
         if (mounted) {
           setState(() {
-            _coachSports = [];
+            // Solo limpiar si no tenemos deportes cargados
+            if (_coachSports.isEmpty) {
+              _coachSports = [];
+            }
           });
         }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _coachSports = [];
+          // Solo limpiar si no tenemos deportes cargados
+          if (_coachSports.isEmpty) {
+            _coachSports = [];
+          }
         });
       }
     }
