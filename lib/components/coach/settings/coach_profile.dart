@@ -170,6 +170,145 @@ class _CoachProfileViewState extends State<CoachProfileView> {
     developer.log('Error adding sport');
   }
 
+  void _showDeleteConfirmationDialog(Sport sport) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.softBlack,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: Colors.grey, width: 1),
+          ),
+          title: const Text(
+            'Eliminar Deporte',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          content: Text(
+            '¿Estás seguro de que quieres eliminar "${_getSportName(sport.sportId)}" de tu perfil?',
+            style: const TextStyle(
+              color: Colors.white70,
+              fontSize: 16,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+              child: const Text(
+                'Cancelar',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _deleteSport(sport);
+              },
+              style: TextButton.styleFrom(
+                backgroundColor: Colors.red.withOpacity(0.2),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Eliminar',
+                style: TextStyle(
+                  color: Colors.red,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _deleteSport(Sport sport) async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      // Use the sport's ID for deletion
+      final sportIdToDelete = sport.id?.toString() ?? sport.sportId?.toString();
+      
+      if (sportIdToDelete == null) {
+        setState(() {
+          _errorMessage = 'Error: ID del deporte no válido';
+          _isLoading = false;
+        });
+        return;
+      }
+      
+      developer.log('Eliminando deporte con ID: $sportIdToDelete');
+      
+      final result = await _profileService.deleteSport(sportIdToDelete);
+      
+      if (result['success']) {
+        // Remove the sport from the local list immediately for better UX
+        setState(() {
+          _sports.removeWhere((s) => s.id == sport.id || s.sportId == sport.sportId);
+          _isLoading = false;
+        });
+        
+        // Show success message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${_getSportName(sport.sportId)} eliminado correctamente'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        
+        // Reload profile to sync with server
+        _loadProfile();
+      } else {
+        setState(() {
+          _errorMessage = result['error'] ?? 'Error al eliminar el deporte';
+          _isLoading = false;
+        });
+        
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(_errorMessage!),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Error de conexión: $e';
+        _isLoading = false;
+      });
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error de conexión: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -369,32 +508,37 @@ class _CoachProfileViewState extends State<CoachProfileView> {
                                     ),
                                   ),
                                 ]
-                              : _sports.map((sport) => Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.neonBlue,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        _getSportName(sport.sportId),
-                                        style: const TextStyle(
-                                          color: Colors.black,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w500,
+                              : _sports.map((sport) => GestureDetector(
+                                  onTap: () {
+                                    _showDeleteConfirmationDialog(sport);
+                                  },
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.neonBlue,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          _getSportName(sport.sportId),
+                                          style: const TextStyle(
+                                            color: Colors.black,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        '\$${sport.specificPrice.toStringAsFixed(2)}',
-                                        style: const TextStyle(
-                                          color: Colors.black54,
-                                          fontSize: 12,
+                                        Text(
+                                          '\$${sport.specificPrice.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            color: Colors.black54,
+                                            fontSize: 12,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
                                 )).toList(),
                           ),
