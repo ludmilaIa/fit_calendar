@@ -127,4 +127,62 @@ class BookingService {
       };
     }
   }
+
+  Future<Map<String, dynamic>> cancelBooking(int bookingId, {String? cancelledReason}) async {
+    try {
+      final String? authToken = await _authService.getToken();
+      
+      if (authToken == null) {
+        developer.log('No hay token para cancelar reserva');
+        return {
+          'success': false,
+          'error': 'No authentication token',
+        };
+      }
+
+      developer.log('Cancelando reserva con ID: $bookingId');
+
+      final requestBody = {
+        'cancelled_reason': cancelledReason ?? 'Cancelado por el usuario',
+      };
+
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/api/bookings/$bookingId/cancel'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+        body: jsonEncode(requestBody),
+      );
+
+      developer.log('Respuesta del servidor (${response.statusCode}): ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'data': data,
+        };
+      } else {
+        dynamic data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          data = {'message': 'Error al procesar la respuesta'};
+        }
+        
+        return {
+          'success': false,
+          'error': data['message'] ?? 'Error al cancelar la reserva',
+        };
+      }
+    } catch (e) {
+      developer.log('Error al cancelar reserva: $e', error: e);
+      return {
+        'success': false,
+        'error': 'Error de conexión: $e',
+      };
+    }
+  }
 } 
