@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'dart:developer' as developer;
 import '../common/colors.dart';
-import '../list/sport.dart';
 import '../services/profile_service.dart';
 import '../services/sports_service.dart';
+import '../components/coach/settings/sport_modal.dart';
 import 'trainer_view.dart';
 import 'fitter_view.dart';
 
@@ -33,7 +33,6 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
   List<Sport> coachSports = [];
   Map<int, String> allSportsMapping = {}; // Map sport ID to name
   bool _isLoading = false;
-  String? selectedSport;
   String? _errorMessage;
   
   @override
@@ -119,93 +118,27 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
     return allSportsMapping[sportId] ?? 'Deporte ID $sportId';
   }
 
-  // Get available sport names (not already selected by coach)
-  List<String> get availableSportNames {
-    final selectedSportIds = coachSports.map((s) => s.sportId).toSet();
-    return allSportsMapping.entries
-        .where((entry) => !selectedSportIds.contains(entry.key))
-        .map((entry) => entry.value)
-        .toList();
+  void _onSportAdded(Sport sport) {
+    // En lugar de recargar todo el perfil, agregamos el nuevo deporte a la lista existente
+    setState(() {
+      // Verificar que el deporte no esté ya en la lista para evitar duplicados
+      bool sportExists = coachSports.any((existingSport) => existingSport.sportId == sport.sportId);
+      if (!sportExists) {
+        coachSports.add(sport);
+        developer.log('Deporte agregado a la UI: ${_getSportName(sport.sportId)} (ID: ${sport.sportId})');
+      } else {
+        developer.log('Deporte ya existe en la lista: ${_getSportName(sport.sportId)}');
+      }
+    });
+    
+    // Opcionalmente, podemos hacer una recarga en segundo plano para sincronizar
+    // pero sin sobrescribir la UI hasta confirmar que tenemos todos los deportes
+    _loadCoachSports();
   }
 
-  void _addSelectedSport() async {
-    if (selectedSport != null) {
-      final String sportToAdd = selectedSport!; // Store the sport name before resetting
-      
-      // Very first log to confirm function starts
-      developer.log('=== STARTING _addSelectedSport for: $sportToAdd ===');
-      
-      try {
-        developer.log('Current coach sports count: ${coachSports.length}');
-        
-        setState(() {
-          _isLoading = true;
-          _errorMessage = null;
-        });
-
-        // Find the sport ID from the name
-        final sportId = allSportsMapping.entries
-            .firstWhere((entry) => entry.value == selectedSport)
-            .key;
-
-        developer.log('Found sport ID: $sportId');
-
-        // Create sport object with default values for profile setup
-        final newSport = Sport(
-          sportId: sportId,
-          specificPrice: 0.0, // Default price, coach can change later
-          specificLocation: '', // Default location
-          sessionDurationMinutes: 60, // Default duration
-        );
-
-        // IMPORTANT: Send ALL existing sports PLUS the new one
-        // This prevents the backend from replacing the entire list
-        final allSportsToSend = [...coachSports, newSport];
-
-        developer.log('About to send ${allSportsToSend.length} sports to API');
-
-        // Call API to add sport to coach profile
-        final result = await _sportsService.createSports(allSportsToSend);
-
-        developer.log('API call completed with success: ${result['success']}');
-
-        if (result['success']) {
-          developer.log('About to reload coach sports...');
-          // Reload coach sports from backend to get updated data
-          await _loadCoachSports();
-          developer.log('Reload completed, new count: ${coachSports.length}');
-          
-          setState(() {
-            selectedSport = null; // Reset selection
-            _isLoading = false;
-          });
-
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('$sportToAdd agregado correctamente'), // Use stored value
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
-        } else {
-          developer.log('API call failed: ${result['error']}');
-          setState(() {
-            _errorMessage = result['error'] ?? 'Error al agregar el deporte';
-            _isLoading = false;
-          });
-        }
-      } catch (e, stackTrace) {
-        developer.log('EXCEPTION in _addSelectedSport: $e');
-        developer.log('StackTrace: $stackTrace');
-        setState(() {
-          _errorMessage = 'Error de conexión: $e';
-          _isLoading = false;
-        });
-      }
-      
-      developer.log('=== ENDING _addSelectedSport ===');
-    }
+  void _onSportError() {
+    // Could show additional error handling here if needed
+    developer.log('Error adding sport');
   }
 
   void _showDeleteConfirmationDialog(Sport sport) {
@@ -329,12 +262,9 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
     }
     
     // Actualizar perfil en el API
-    final result = await _profileService.updateProfile(
+    final result = await _profileService.updateUserProfile(
       age: age,
       description: description,
-      token: widget.token,
-      // Remove sports from API call for now
-      // sports: widget.isCoach ? selectedSports : null,
     );
     
     if (result['success']) {
@@ -477,100 +407,82 @@ class _ProfileSetupViewState extends State<ProfileSetupView> {
                   ),
                   const SizedBox(height: 16),
                   
-                  // Dropdown para seleccionar deporte
-                  Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.darkGray.withAlpha(77),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: selectedSport,
-                        isExpanded: true,
-                        dropdownColor: AppColors.darkGray,
-                        icon: Icon(Icons.arrow_drop_down, color: AppColors.gray),
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
-                        hint: Text('Seleccionar deporte', style: TextStyle(color: AppColors.gray)),
-                        items: availableSportNames
-                            .map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
+                  // Sports section with same format as coach_profile
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: coachSports.isEmpty 
+                            ? [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey[600],
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Text(
+                                    'Sin deportes asignados',
+                                    style: TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                ),
+                              ]
+                            : coachSports.map((sport) => GestureDetector(
+                                onTap: () {
+                                  _showDeleteConfirmationDialog(sport);
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.neonBlue,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _getSportName(sport.sportId),
+                                        style: const TextStyle(
+                                          color: Colors.black,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      Text(
+                                        '\$${sport.specificPrice.toStringAsFixed(2)}',
+                                        style: const TextStyle(
+                                          color: Colors.black54,
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )).toList(),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      IconButton(
+                        icon: const Icon(Icons.add, color: AppColors.neonBlue),
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) {
+                              return AddSportModal(
+                                onSportAdded: _onSportAdded,
+                                onError: _onSportError,
+                              );
+                            },
                           );
-                        }).toList(),
-                        onChanged: (String? value) {
-                          setState(() {
-                            selectedSport = value;
-                          });
                         },
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                  
-                  // Sports Chips
-                  Wrap(
-                    spacing: 8.0,
-                    runSpacing: 8.0,
-                    children: coachSports.map((sport) {
-                      return SizedBox(
-                        width: 107,
-                        height: 23,
-                        child: GestureDetector(
-                          onTap: () {
-                            _showDeleteConfirmationDialog(sport);
-                          },
-                          child: Container(
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: AppColors.neonBlue.withAlpha(153),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Text(
-                              _getSportName(sport.sportId),
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 16,
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Add Sport Button
-                  if (selectedSport != null)
-                    ElevatedButton(
-                      onPressed: _isLoading ? null : _addSelectedSport,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primaryBlue,
-                        minimumSize: const Size(double.infinity, 40),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                color: Colors.black,
-                                strokeWidth: 2,
-                              ),
-                            )
-                          : Text(
-                              'Agregar $selectedSport',
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.black,
-                              ),
-                            ),
-                    ),
                 ],
                 
                 // Error message if exists
