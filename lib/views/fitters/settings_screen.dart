@@ -3,6 +3,7 @@ import 'package:fit_calendar/common/colors.dart';
 import '../../components/fitters/settings/profile_screen.dart';
 import '../../services/auth_service.dart';
 import '../../signin.dart';
+import 'event_history_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -87,7 +88,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       ListTile(
                         title: const Text('Historial', style: TextStyle(color: Colors.white, fontSize: 16)),
                         trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.primaryBlue, size: 16),
-                        onTap: () {},
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const EventHistoryScreen()),
+                          );
+                        },
                       ),
                     ],
                   ),

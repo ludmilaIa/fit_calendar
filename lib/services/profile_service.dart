@@ -367,4 +367,59 @@ class ProfileService {
       };
     }
   }
+
+  /// Gets the user profile data
+  /// GET /api/user/profile
+  Future<Map<String, dynamic>> getUserProfile() async {
+    try {
+      final String? authToken = await _authService.getToken();
+      
+      if (authToken == null) {
+        developer.log('No hay token para obtener perfil del usuario');
+        return {
+          'success': false,
+          'error': 'No authentication token'
+        };
+      }
+
+      developer.log('Obteniendo perfil del usuario...');
+      
+      final response = await http.get(
+        Uri.parse('$_baseUrl/api/user/profile'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      developer.log('Respuesta del servidor (${response.statusCode}): ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return {
+          'success': true,
+          'data': data,
+        };
+      } else {
+        dynamic data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          data = {'message': 'Error al procesar la respuesta'};
+        }
+        
+        return {
+          'success': false,
+          'error': data['message'] ?? 'Error al obtener el perfil del usuario',
+        };
+      }
+    } catch (e) {
+      developer.log('Error al obtener perfil del usuario: $e', error: e);
+      return {
+        'success': false,
+        'error': 'Error de conexión: $e',
+      };
+    }
+  }
 } 

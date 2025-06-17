@@ -40,6 +40,7 @@ class AuthService {
         'password': password,
         'password_confirmation': passwordConfirmation,
         'role': role,
+        'language': 'es',
       };
       
       developer.log('Enviando solicitud de registro: $requestBody');
