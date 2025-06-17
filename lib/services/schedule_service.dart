@@ -455,4 +455,57 @@ class ScheduleService {
       };
     }
   }
+
+  // Eliminar una disponibilidad específica
+  Future<Map<String, dynamic>> deleteSpecificAvailability(int availabilityId) async {
+    try {
+      final String? authToken = await _authService.getToken();
+      
+      if (authToken == null) {
+        developer.log('No hay token para eliminar disponibilidad');
+        return {
+          'success': false,
+          'error': 'No authentication token'
+        };
+      }
+
+      developer.log('Eliminando disponibilidad específica con ID: $availabilityId');
+      
+      final response = await http.delete(
+        Uri.parse('$_baseUrl/api/specific-availabilities/$availabilityId'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $authToken',
+        },
+      );
+
+      developer.log('Respuesta del servidor (${response.statusCode}): ${response.body}');
+      
+      if (response.statusCode == 200 || response.statusCode == 204) {
+        return {
+          'success': true,
+          'message': 'Disponibilidad eliminada exitosamente',
+        };
+      } else {
+        dynamic data;
+        try {
+          data = jsonDecode(response.body);
+        } catch (e) {
+          data = {'message': 'Error al procesar la respuesta'};
+        }
+        
+        return {
+          'success': false,
+          'error': data['message'] ?? 'Error al eliminar la disponibilidad',
+        };
+      }
+    } catch (e) {
+      developer.log('Error al eliminar disponibilidad: $e', error: e);
+      return {
+        'success': false,
+        'error': 'Error de conexión: $e',
+      };
+    }
+  }
 } 

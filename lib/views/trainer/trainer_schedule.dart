@@ -6,10 +6,8 @@ import '../../services/schedule_service.dart';
 import '../../services/profile_service.dart';
 import '../../services/sports_service.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:logger/logger.dart';
 import '../../services/auth_service.dart';
 
-final logger = Logger();
 class TrainerScheduleView extends StatefulWidget {
   const TrainerScheduleView({super.key});
 
@@ -38,7 +36,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
     // Verify authentication before loading schedule
     final token = await _authService.getToken();
     if (token == null) {
-      logger.e('Usuario no autenticado - no se puede cargar el horario');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -50,7 +47,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
       return;
     }
     
-    logger.i('Usuario autenticado, cargando horario y deportes...');
     await Future.wait([
       _loadSportsMapping(),
       _loadCoachSports(),
@@ -66,7 +62,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
       
       if (result['success']) {
         final data = result['data'];
-        logger.i('Sports mapping data received: $data');
         
         if (data is List) {
           final newMapping = <int, String>{};
@@ -79,7 +74,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
               // Prefer name_es, fallback to name
               final sportName = nameEs ?? name ?? 'Deporte ID $id';
               newMapping[id] = sportName;
-              logger.d('Mapped sport: ID=$id -> Name=$sportName');
             }
           }
           
@@ -88,27 +82,19 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
               _sportsMapping = newMapping;
             });
           }
-          
-          logger.i('Sports mapping loaded successfully: $_sportsMapping');
-        } else {
-          logger.w('Sports data is not a list: $data');
         }
-      } else {
-        logger.w('Error loading sports mapping: ${result['error']}');
       }
     } catch (e) {
-      logger.e('Exception loading sports mapping: $e');
+      // Keep only critical error logging
     }
   }
 
   Future<void> _loadCoachSports() async {
     try {
-      logger.i('Cargando deportes del coach...');
       final result = await _profileService.getCoachProfileWithSports();
       
       if (result['success']) {
         final data = result['data'];
-        logger.i('Coach profile with sports received: $data');
         
         if (mounted) {
           setState(() {
@@ -134,10 +120,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             }
           });
         }
-        
-        logger.i('Loaded ${_coachSports.length} coach sports');
       } else {
-        logger.w('Error loading coach sports: ${result['error']}');
         if (mounted) {
           setState(() {
             _coachSports = [];
@@ -145,7 +128,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         }
       }
     } catch (e) {
-      logger.e('Exception loading coach sports: $e');
       if (mounted) {
         setState(() {
           _coachSports = [];
@@ -162,23 +144,16 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
     }
 
     try {
-      logger.i('Cargando disponibilidades del coach logueado...');
       final result = await _scheduleService.getOwnCoachAvailabilities();
-      
-      logger.i('Resultado de getCoachAvailabilities: ${result.toString()}');
       
       if (result['success']) {
         final data = result['data'];
-        logger.i('Datos recibidos del servidor: $data');
         
         // Parse the response and populate _schedule
         if (data is List) {
           _schedule.clear();
-          logger.i('Total de disponibilidades recibidas: ${data.length}');
           
-          for (var item in data) {
-            logger.d('Procesando item: $item');
-            
+          for (var item in data) {            
             // Handle specific availability structure
             final dateStr = item['date'] as String?;
             final startTimeStr = item['start_time'] as String?;
@@ -187,16 +162,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
             final location = item['location'] as String? ?? '';
             final isOnline = item['is_online'] as bool? ?? false;
             final isAvailable = true; // Default to available for specific availabilities
-            
-            // Log the coach_id to verify it's only the logged-in user's data
-            final coachId = item['coach_id'];
-            logger.i('Disponibilidad del coach ID: $coachId');
-            
-            // Debug logging for sport resolution
-            logger.d('Processing availability item: $item');
-            logger.d('Sport ID from server: $sportId');
-            logger.d('Available sports mapping: $_sportsMapping');
-            logger.d('Sport object from server: ${item['sport']}');
+            final availabilityId = item['id'] as int?; // Capturar el ID de la disponibilidad específica
             
             // Map sport ID to sport name using the loaded mapping
             String sport = 'Deporte Desconocido'; // Default fallback
@@ -205,10 +171,8 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
               // First try to get from our loaded mapping
               if (_sportsMapping.containsKey(sportId)) {
                 sport = _sportsMapping[sportId]!;
-                logger.d('Sport name from mapping: ID=$sportId -> Name=$sport');
               } else {
                 sport = 'Deporte ID $sportId';
-                logger.w('Sport ID $sportId not found in mapping, using fallback');
               }
             }
             
@@ -217,14 +181,10 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
               final sportObj = item['sport'];
               if (sportObj['name_es'] != null) {
                 sport = sportObj['name_es'] as String;
-                logger.d('Sport name from server object: $sport');
               } else if (sportObj['name'] != null) {
                 sport = sportObj['name'] as String;
-                logger.d('Sport name from server object (name field): $sport');
               }
             }
-            
-            logger.i('Final sport resolved: ID=$sportId -> Name=$sport');
             
             if (dateStr != null && startTimeStr != null && endTimeStr != null) {
               try {
@@ -243,7 +203,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                       int.parse(dateParts[2]),
                     );
                   } else {
-                    logger.w('Formato de fecha inválido: $dateStr');
                     continue;
                   }
                 }
@@ -255,8 +214,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                 if (startTime != null && endTime != null) {
                   final dateKey = DateTime(date.year, date.month, date.day);
                   
-                  logger.d('Agregando disponibilidad: ${_formatDateString(date)} ${_formatTimeRange(startTime, endTime)} - $sport');
-                  
                   _schedule[dateKey] = [
                     ...?_schedule[dateKey],
                     TimeSlot(
@@ -267,28 +224,21 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                       location: location,
                       isOnline: isOnline,
                       isAvailable: isAvailable,
+                      availabilityId: availabilityId,
                     ),
                   ];
-                } else {
-                  logger.w('Error parseando tiempos: start=$startTimeStr, end=$endTimeStr');
                 }
               } catch (e) {
-                logger.e('Error parseando horarios: start=$startTimeStr, end=$endTimeStr, error: $e');
+                // Continue processing other items if one fails
               }
-            } else {
-                logger.w('Faltan datos en el item: fecha=$dateStr, inicio=$startTimeStr, fin=$endTimeStr');
             }
           }
           
-          logger.i('Total de disponibilidades procesadas: ${_getAllTimeSlots().length}');
           if (mounted) {
             setState(() {});
           }
-        } else {
-          logger.w('Los datos recibidos no son una lista: $data');
         }
       } else {
-        logger.e('Error del servidor: ${result['error']}');
         // Show error message
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -300,7 +250,6 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         }
       }
     } catch (e) {
-      logger.e('Error inesperado al cargar disponibilidades: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -329,7 +278,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
         return TimeOfDay(hour: hour, minute: minute);
       }
     } catch (e) {
-      logger.e('Error parsing time: $timeStr - $e');
+      // Ignore parsing errors and return null
     }
     return null;
   }
@@ -537,6 +486,7 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
                   date: selectedDate,
                   location: location,
                   isOnline: isOnline,
+                  // availabilityId será null para slots creados localmente hasta que se recargue
                 ),
               ];
             });
@@ -593,11 +543,131 @@ class _TrainerScheduleViewState extends State<TrainerScheduleView> {
     }
   }
 
-  void _deleteTimeSlot(DateTime day, TimeSlot slot) {
-    if (mounted) {
-      setState(() {
-        _schedule[day]?.remove(slot);
-      });
+  void _deleteTimeSlot(DateTime day, TimeSlot slot) async {
+    // Mostrar confirmación antes de eliminar
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: AppColors.darkGray,
+          title: const Text(
+            '¿Eliminar disponibilidad?',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: Text(
+            'Se eliminará la disponibilidad del ${_formatDateString(slot.date)} de ${_formatTimeRange(slot.startTime, slot.endTime)} para ${slot.sport}',
+            style: TextStyle(color: AppColors.gray),
+          ),
+          actions: [
+            Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(false),
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.gray.withAlpha(51),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Cancelar',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.of(context).pop(true),
+                    style: TextButton.styleFrom(
+                      backgroundColor: Colors.red.withAlpha(153),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                    child: const Text(
+                      'Eliminar',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed == true) {
+      // Si tiene availabilityId, eliminar del servidor
+      if (slot.availabilityId != null) {
+        setState(() {
+          _isLoading = true;
+        });
+
+        try {
+          final result = await _scheduleService.deleteSpecificAvailability(slot.availabilityId!);
+          
+          if (result['success']) {
+            // Eliminar del estado local
+            if (mounted) {
+              setState(() {
+                _schedule[day]?.remove(slot);
+                _isLoading = false;
+              });
+            }
+
+            // Mostrar mensaje de éxito
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Disponibilidad eliminada exitosamente'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            }
+
+            // Recargar para sincronizar con el servidor
+            _loadCoachSchedule();
+          } else {
+            setState(() {
+              _isLoading = false;
+            });
+
+            // Mostrar mensaje de error
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Error: ${result['error'] ?? 'No se pudo eliminar la disponibilidad'}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
+          }
+        } catch (e) {
+          setState(() {
+            _isLoading = false;
+          });
+
+          // Mostrar mensaje de error
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error inesperado: $e'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+        }
+      } else {
+        // Si no tiene availabilityId, solo eliminar localmente (slot creado pero no guardado)
+        if (mounted) {
+          setState(() {
+            _schedule[day]?.remove(slot);
+          });
+        }
+      }
     }
   }
 
@@ -613,6 +683,7 @@ class TimeSlot {
   final DateTime date;
   final String location;
   final bool isOnline;
+  final int? availabilityId; // ID de la disponibilidad específica del servidor
   bool isAvailable;
 
   TimeSlot({
@@ -622,6 +693,7 @@ class TimeSlot {
     required this.date,
     required this.location,
     required this.isOnline,
+    this.availabilityId,
     this.isAvailable = true,
   });
 } 
